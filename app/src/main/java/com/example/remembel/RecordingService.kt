@@ -43,6 +43,7 @@ class RecordingService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(1,crearNotification())
+        ConfiguracionGrabacion.guardarEstabaActivo(this, true)
 
         // Si ya está grabando, ignoramos esta orden repetida en vez de arrancar un segundo grabador
         if (grabadorActual != null) {
@@ -138,6 +139,7 @@ class RecordingService : Service() {
         super.onDestroy()
         handler.removeCallbacks(runnableCorte)
         detenerGrabacionAcual()
+        ConfiguracionGrabacion.guardarEstabaActivo(this, false)
     }
     private fun crearNotification(): Notification{
         val canalId = "grabacion_channel"

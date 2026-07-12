@@ -41,6 +41,18 @@ object ConfiguracionGrabacion {
     private const val CLAVE_RETENCION_DIAS = "retencion_dias"
     private const val CLAVE_VOZ_CLARA = "voz_clara"
 
+    private const val CLAVE_ESTABA_ACTIVO = "estaba_activo"
+
+    fun guardarEstabaActivo(context: Context, activo: Boolean) {
+        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(CLAVE_ESTABA_ACTIVO, activo).apply()
+    }
+
+    fun leerEstabaActivo(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
+        return prefs.getBoolean(CLAVE_ESTABA_ACTIVO, false)
+    }
+
     fun guardarCalidad(context: Context, calidad: CalidadAudio) {
         val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
         prefs.edit().putString(CLAVE_CALIDAD, calidad.name).apply()
