@@ -2,6 +2,15 @@ package com.example.remembel
 
 import android.content.Context
 
+
+enum class EstiloVisual {
+    ESENCIAL, // cálido, quieto, texto grande — prioriza claridad
+    VIVO      // compacto, animado — prioriza modernidad
+}
+
+enum class TemaApp {
+    CLARO, OSCURO, SISTEMA
+}
 /**
  * Los distintos modos en los que puede funcionar la grabación.
  * Un "enum class" es una lista cerrada de valores posibles: aquí solo
@@ -42,6 +51,31 @@ object ConfiguracionGrabacion {
     private const val CLAVE_VOZ_CLARA = "voz_clara"
 
     private const val CLAVE_ESTABA_ACTIVO = "estaba_activo"
+
+    private const val CLAVE_ESTILO = "estilo_visual"
+    private const val CLAVE_TEMA = "tema_app"
+
+    fun guardarEstilo(context: Context, estilo: EstiloVisual) {
+        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
+        prefs.edit().putString(CLAVE_ESTILO, estilo.name).apply()
+    }
+
+    fun leerEstilo(context: Context): EstiloVisual {
+        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
+        val nombre = prefs.getString(CLAVE_ESTILO, EstiloVisual.ESENCIAL.name)
+        return EstiloVisual.valueOf(nombre ?: EstiloVisual.ESENCIAL.name)
+    }
+
+    fun guardarTema(context: Context, tema: TemaApp) {
+        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
+        prefs.edit().putString(CLAVE_TEMA, tema.name).apply()
+    }
+
+    fun leerTema(context: Context): TemaApp {
+        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
+        val nombre = prefs.getString(CLAVE_TEMA, TemaApp.SISTEMA.name)
+        return TemaApp.valueOf(nombre ?: TemaApp.SISTEMA.name)
+    }
 
     fun guardarEstabaActivo(context: Context, activo: Boolean) {
         val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)

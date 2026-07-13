@@ -1,5 +1,12 @@
 package com.example.remembel
 
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
 import java.io.File
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
@@ -7,11 +14,25 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.runtime.collectAsState
 import androidx.compose.material.icons.filled.Settings
-import com.example.remembel.ui.theme.RojoGrabando
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Slider
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
@@ -48,12 +69,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Divider
+
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -77,6 +100,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+
+
+private enum class Pantalla {
+    PRINCIPAL, AJUSTES, BIBLIOTECA
+}
 class MainActivity : ComponentActivity() {
 
     private val solicitarPermisos = registerForActivityResult(
@@ -89,29 +117,51 @@ class MainActivity : ComponentActivity() {
         pedirPermisosNecesarios()
 
         setContent {
-            RememBelTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    var mostrandoAjustes by rememberSaveable { mutableStateOf(false) }
-                    var mostrandoBiblioteca by rememberSaveable { mutableStateOf(false) }
+            var estilo by remember { mutableStateOf(ConfiguracionGrabacion.leerEstilo(this)) }
+            var tema by remember { mutableStateOf(ConfiguracionGrabacion.leerTema(this)) }
 
-                    if (mostrandoAjustes) {
-                        PantallaAjustes(
-                            modifier = Modifier.padding(innerPadding),
-                            onVolver = { mostrandoAjustes = false }
-                        )
-                    } else if (mostrandoBiblioteca) {
-                        PantallaBiblioteca(
-                            modifier = Modifier.padding(innerPadding),
-                            onVolver = { mostrandoBiblioteca = false }
-                        )
-                    } else {
-                        PantallaPrincipal(
-                            modifier = Modifier.padding(innerPadding),
-                            onIniciar = { iniciarServicio() },
-                            onDetener = { detenerServicio() },
-                            onAbrirAjustes = { mostrandoAjustes = true },
-                            onAbrirBiblioteca = { mostrandoBiblioteca = true }
-                        )
+            RememBelTheme(estilo = estilo, tema = tema) {
+                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                    var pantallaActual by rememberSaveable { mutableStateOf(Pantalla.PRINCIPAL) }
+
+                    AnimatedContent(
+                        targetState = pantallaActual,
+                        transitionSpec = {
+                            if (targetState != Pantalla.PRINCIPAL) {
+                                // Entrando a una subpantalla: la nueva llega desde la derecha,
+                                // la anterior se aparta hacia la izquierda.
+                                (slideInHorizontally(tween(280)) { ancho -> ancho } + fadeIn(tween(280)))
+                                    .togetherWith(slideOutHorizontally(tween(280)) { ancho -> -ancho / 4 } + fadeOut(tween(280)))
+                            } else {
+                                // Volviendo a Principal: entra desde la izquierda,
+                                // la subpantalla se va hacia la derecha.
+                                (slideInHorizontally(tween(280)) { ancho -> -ancho / 4 } + fadeIn(tween(280)))
+                                    .togetherWith(slideOutHorizontally(tween(280)) { ancho -> ancho } + fadeOut(tween(280)))
+                            }
+                        },
+                        label = "navegacion"
+                    ) { pantalla ->
+                        when (pantalla) {
+                            Pantalla.AJUSTES -> PantallaAjustes(
+                                modifier = Modifier.padding(innerPadding),
+                                onVolver = {
+                                    pantallaActual = Pantalla.PRINCIPAL
+                                    estilo = ConfiguracionGrabacion.leerEstilo(this@MainActivity)
+                                    tema = ConfiguracionGrabacion.leerTema(this@MainActivity)
+                                }
+                            )
+                            Pantalla.BIBLIOTECA -> PantallaBiblioteca(
+                                modifier = Modifier.padding(innerPadding),
+                                onVolver = { pantallaActual = Pantalla.PRINCIPAL }
+                            )
+                            Pantalla.PRINCIPAL -> PantallaPrincipal(
+                                modifier = Modifier.padding(innerPadding),
+                                onIniciar = { iniciarServicio() },
+                                onDetener = { detenerServicio() },
+                                onAbrirAjustes = { pantallaActual = Pantalla.AJUSTES },
+                                onAbrirBiblioteca = { pantallaActual = Pantalla.BIBLIOTECA }
+                            )
+                        }
                     }
                 }
             }
@@ -169,6 +219,7 @@ fun PantallaPrincipal(
     var estaSonando by remember { mutableStateOf(false) }
     var posicionMs by remember { mutableStateOf(0) }
     var duracionMs by remember { mutableStateOf(0) }
+    var velocidad by remember { mutableStateOf(1f) }
     val estaGrabando by RecordingService.estaGrabando.collectAsState()
 
     LaunchedEffect(estaSonando) {
@@ -182,6 +233,18 @@ fun PantallaPrincipal(
         onDispose { reproductor?.release() }
     }
 
+    fun cambiarVelocidad(nuevaVelocidad: Float) {
+        try {
+            reproductor?.let { mp ->
+                mp.playbackParams = mp.playbackParams.setSpeed(nuevaVelocidad)
+            }
+            velocidad = nuevaVelocidad
+        } catch (e: Exception) {
+            // Si el reproductor no está en un estado válido (pausado, p.ej.),
+            // ignoramos el cambio en vez de crashear.
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -191,17 +254,25 @@ fun PantallaPrincipal(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // ---- Cabecera ----
-        Icon(
-            imageVector = Icons.Filled.Mic,
-            contentDescription = null,
-            modifier = Modifier.size(48.dp),
-            tint = MaterialTheme.colorScheme.primary
-        )
-        IconButton(onClick = onAbrirAjustes) {
-            Icon(Icons.Filled.Settings, contentDescription = "Ajustes")
-        }
-        IconButton(onClick = onAbrirBiblioteca) {
-            Icon(Icons.Filled.Folder, contentDescription = "Biblioteca")
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Mic,
+                contentDescription = null,
+                modifier = Modifier.size(40.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                IconButton(onClick = onAbrirBiblioteca) {
+                    Icon(Icons.Filled.Folder, contentDescription = "Biblioteca")
+                }
+                IconButton(onClick = onAbrirAjustes) {
+                    Icon(Icons.Filled.Settings, contentDescription = "Ajustes")
+                }
+            }
         }
         Text(
             "RememBel",
@@ -232,7 +303,7 @@ fun PantallaPrincipal(
                         imageVector = Icons.Filled.Circle,
                         contentDescription = null,
                         modifier = Modifier.size(12.dp),
-                        tint = if (estaGrabando) RojoGrabando else MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = if (estaGrabando) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         if (estaGrabando) "Grabando..." else "En pausa",
@@ -241,18 +312,24 @@ fun PantallaPrincipal(
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    val interactionEmpezar = remember { MutableInteractionSource() }
                     Button(
                         onClick = { onIniciar() },
-                        enabled = !estaGrabando
+                        enabled = !estaGrabando,
+                        interactionSource = interactionEmpezar,
+                        modifier = Modifier.escalaAlPulsar(interactionEmpezar)
                     ) {
                         Icon(Icons.Filled.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
                         Text("Empezar")
                     }
 
+                    val interactionDetener = remember { MutableInteractionSource() }
                     OutlinedButton(
                         onClick = { onDetener() },
-                        enabled = estaGrabando
+                        enabled = estaGrabando,
+                        interactionSource = interactionDetener,
+                        modifier = Modifier.escalaAlPulsar(interactionDetener)
                     ) {
                         Icon(Icons.Filled.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
@@ -308,7 +385,7 @@ fun PantallaPrincipal(
                         Text(if (horaFin != null) "${dosDigitos(horaFin!!.first)}:${dosDigitos(horaFin!!.second)}" else "Hasta")
                     }
                 }
-
+                val interactionRecuperar = remember { MutableInteractionSource() }
                 Button(
                     onClick = {
                         if (diaSeleccionado == null || horaInicio == null || horaFin == null) {
@@ -338,6 +415,7 @@ fun PantallaPrincipal(
                                         "a ${dosDigitos(horaFin!!.first)}:${dosDigitos(horaFin!!.second)}"
                                 archivoTemporalRecuperado = resultado
                                 reproductor?.release()
+                                velocidad = 1f
                                 reproductor = MediaPlayer().apply {
                                     setDataSource(resultado.absolutePath)
                                     setOnCompletionListener { estaSonando = false }
@@ -345,18 +423,19 @@ fun PantallaPrincipal(
                                     duracionMs = duration
                                     posicionMs = 0
                                     start()
+                                    playbackParams = playbackParams.setSpeed(1f)
                                 }
                                 estaSonando = true
                             }
                         }
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    interactionSource = interactionRecuperar,
+                    modifier = Modifier.fillMaxWidth().escalaAlPulsar(interactionRecuperar)
                 ) {
                     Icon(Icons.Filled.Search, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Recuperar y reproducir")
                 }
-
                 if (mensaje.isNotEmpty()) {
                     Text(
                         mensaje,
@@ -391,22 +470,69 @@ fun PantallaPrincipal(
                         valueRange = 0f..duracionMs.toFloat()
                     )
 
-                    IconButton(onClick = {
-                        if (estaSonando) {
-                            reproductor?.pause()
-                            estaSonando = false
-                        } else {
-                            reproductor?.start()
-                            estaSonando = true
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(20.dp)
+                    ) {
+                        IconButton(onClick = {
+                            val nuevaPos = (posicionMs - 10_000).coerceAtLeast(0)
+                            reproductor?.seekTo(nuevaPos)
+                            posicionMs = nuevaPos
+                        }) {
+                            Icon(Icons.Filled.Replay10, contentDescription = "Retroceder 10 segundos")
                         }
-                    }) {
-                        Icon(
-                            imageVector = if (estaSonando) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                            contentDescription = null,
-                            modifier = Modifier.size(36.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
+
+                        IconButton(
+                            onClick = {
+                                if (estaSonando) {
+                                    reproductor?.pause()
+                                    estaSonando = false
+                                } else {
+                                    reproductor?.start()
+                                    estaSonando = true
+                                }
+                            },
+                            modifier = Modifier.size(56.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (estaSonando) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                contentDescription = if (estaSonando) "Pausar" else "Reproducir",
+                                modifier = Modifier.size(40.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        IconButton(onClick = {
+                            val nuevaPos = (posicionMs + 10_000).coerceAtMost(duracionMs)
+                            reproductor?.seekTo(nuevaPos)
+                            posicionMs = nuevaPos
+                        }) {
+                            Icon(Icons.Filled.Forward10, contentDescription = "Avanzar 10 segundos")
+                        }
                     }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(0.75f, 1f, 1.25f, 1.5f, 2f).forEach { opcion ->
+                            val seleccionada = velocidad == opcion
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = if (seleccionada) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+                                modifier = Modifier.clickable { cambiarVelocidad(opcion) }
+                            ) {
+                                Text(
+                                    "${opcion}x".replace(".0x", "x"),
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (seleccionada) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
                     OutlinedButton(
                         onClick = { mostrarDialogoGuardar = true },
                         modifier = Modifier.fillMaxWidth()
@@ -455,6 +581,54 @@ fun PantallaPrincipal(
         )
     }
 }
+@Composable
+private fun PuntoDeGrabacion(estaGrabando: Boolean) {
+    val transicionInfinita = rememberInfiniteTransition(label = "pulso")
+    val escalaHalo by transicionInfinita.animateFloat(
+        initialValue = 1f,
+        targetValue = 2.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "escalaHalo"
+    )
+    val opacidadHalo by transicionInfinita.animateFloat(
+        initialValue = 0.5f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "opacidadHalo"
+    )
+
+    Box(
+        modifier = Modifier.size(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        if (estaGrabando) {
+            Box(
+                modifier = Modifier
+                    .size(12.dp)
+                    .graphicsLayer {
+                        scaleX = escalaHalo
+                        scaleY = escalaHalo
+                        alpha = opacidadHalo
+                    }
+                    .background(MaterialTheme.colorScheme.primary, shape = CircleShape)
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(12.dp)
+                .background(
+                    if (estaGrabando) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    shape = CircleShape
+                )
+        )
+    }
+}
 
 // -------- Funciones auxiliares de interfaz --------
 
@@ -480,6 +654,19 @@ private fun mostrarSelectorFecha(
         ahora.get(Calendar.MONTH),
         ahora.get(Calendar.DAY_OF_MONTH)
     ).show()
+}
+@Composable
+private fun Modifier.escalaAlPulsar(interactionSource: MutableInteractionSource): Modifier {
+    val estaPulsado by interactionSource.collectIsPressedAsState()
+    val escala by animateFloatAsState(
+        targetValue = if (estaPulsado) 0.96f else 1f,
+        animationSpec = tween(120),
+        label = "escalaPulsacion"
+    )
+    return this.graphicsLayer {
+        scaleX = escala
+        scaleY = escala
+    }
 }
 
 internal fun mostrarSelectorHora(

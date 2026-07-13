@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
+
 @Composable
 fun PantallaAjustes(
     modifier: Modifier = Modifier,
@@ -44,11 +45,12 @@ fun PantallaAjustes(
     var calidadElegida by remember { mutableStateOf(ConfiguracionGrabacion.leerCalidad(context)) }
     var retencionDias by remember { mutableIntStateOf(ConfiguracionGrabacion.leerRetencionDias(context)) }
     var vozClara by remember { mutableStateOf(ConfiguracionGrabacion.leerVozClara(context)) }
+
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(20.dp)
-            .verticalScroll(rememberScrollState()),
+            .verticalScroll(rememberScrollState())
+            .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text("Ajustes de grabación", style = MaterialTheme.typography.headlineSmall)
@@ -142,6 +144,33 @@ fun PantallaAjustes(
             }
             Switch(checked = vozClara, onCheckedChange = { vozClara = it })
         }
+        HorizontalDivider()
+        Text("Apariencia", style = MaterialTheme.typography.titleMedium)
+
+        var estiloElegido by remember { mutableStateOf(ConfiguracionGrabacion.leerEstilo(context)) }
+        var temaElegido by remember { mutableStateOf(ConfiguracionGrabacion.leerTema(context)) }
+
+        Text("Estilo", style = MaterialTheme.typography.bodyMedium)
+        EstiloVisual.entries.forEach { estilo ->
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                RadioButton(selected = estiloElegido == estilo, onClick = { estiloElegido = estilo })
+                Text(if (estilo == EstiloVisual.ESENCIAL) "Esencial (claro, texto grande)" else "Vivo (moderno, animado)")
+            }
+        }
+
+        Text("Tema", style = MaterialTheme.typography.bodyMedium)
+        TemaApp.entries.forEach { tema ->
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                RadioButton(selected = temaElegido == tema, onClick = { temaElegido = tema })
+                Text(
+                    when (tema) {
+                        TemaApp.CLARO -> "Claro"
+                        TemaApp.OSCURO -> "Oscuro"
+                        TemaApp.SISTEMA -> "Seguir el sistema"
+                    }
+                )
+            }
+        }
         Button(
             onClick = {
                 ConfiguracionGrabacion.guardarModo(context, modoElegido)
@@ -149,6 +178,8 @@ fun PantallaAjustes(
                 ConfiguracionGrabacion.guardarRetencionDias(context, retencionDias)
                 ConfiguracionGrabacion.guardarVozClara(context, vozClara)
                 AlarmScheduler.cancelarTodasLasAlarmas(context)
+                ConfiguracionGrabacion.guardarEstilo(context, estiloElegido)
+                ConfiguracionGrabacion.guardarTema(context, temaElegido)
 
                 when (modoElegido) {
                     ModoGrabacion.HORARIO_FIJO -> {

@@ -1,5 +1,19 @@
 package com.example.remembel
 
+
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import android.media.MediaPlayer
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Slider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -14,6 +28,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AudioFile
@@ -58,11 +73,54 @@ fun PantallaBiblioteca(
     var elementoParaBorrar by remember { mutableStateOf<File?>(null) }
     var elementoParaMover by remember { mutableStateOf<File?>(null) }
     var mensaje by remember { mutableStateOf("") }
+    var reproductor by remember { mutableStateOf<MediaPlayer?>(null) }
+    var archivoSonando by remember { mutableStateOf<File?>(null) }
+    var estaSonando by remember { mutableStateOf(false) }
+    var posicionMs by remember { mutableStateOf(0) }
+    var duracionMs by remember { mutableStateOf(0) }
+    var velocidad by remember { mutableStateOf(1f) }
+
+    LaunchedEffect(estaSonando) {
+        while (estaSonando) {
+            reproductor?.let { posicionMs = it.currentPosition }
+            delay(200)
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { reproductor?.release() }
+    }
 
     // Se recalcula solo cuando cambia la carpeta o pedimos refresco manual (tras crear/borrar/renombrar)
     val contenido = remember(carpetaActual, refrescar) {
         val hijos = carpetaActual.listFiles()?.toList() ?: emptyList()
         hijos.sortedWith(compareBy({ !it.isDirectory }, { it.name }))
+    }
+    fun reproducir(archivo: File) {
+        reproductor?.release()
+        velocidad = 1f
+        reproductor = MediaPlayer().apply {
+            setDataSource(archivo.absolutePath)
+            setOnCompletionListener { estaSonando = false }
+            prepare()
+            duracionMs = duration
+            posicionMs = 0
+            start()
+            playbackParams = playbackParams.setSpeed(1f)
+        }
+        archivoSonando = archivo
+        estaSonando = true
+    }
+
+    fun cambiarVelocidad(nuevaVelocidad: Float) {
+        try {
+            reproductor?.let { mp ->
+                mp.playbackParams = mp.playbackParams.setSpeed(nuevaVelocidad)
+            }
+            velocidad = nuevaVelocidad
+        } catch (e: Exception) {
+            // Si el reproductor no está en un estado válido, ignoramos el cambio.
+        }
     }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
@@ -106,11 +164,95 @@ fun PantallaBiblioteca(
             items(contenido) { elemento ->
                 ElementoBiblioteca(
                     archivo = elemento,
-                    onAbrir = { if (elemento.isDirectory) carpetaActual = elemento },
+                    onAbrir = {
+                        if (elemento.isDirectory) carpetaActual = elemento
+                        else reproducir(elemento)
+                    },
                     onRenombrar = { elementoParaRenombrar = elemento },
                     onBorrar = { elementoParaBorrar = elemento },
                     onMover = if (!elemento.isDirectory) { { elementoParaMover = elemento } } else null
                 )
+            }
+        }
+        if (reproductor != null && duracionMs > 0) {
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    archivoSonando?.name ?: "",
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1
+                )
+                Slider(
+                    value = posicionMs.toFloat(),
+                    onValueChange = { nuevaPosicion ->
+                        reproductor?.seekTo(nuevaPosicion.toInt())
+                        posicionMs = nuevaPosicion.toInt()
+                    },
+                    valueRange = 0f..duracionMs.toFloat()
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    IconButton(onClick = {
+                        val nuevaPos = (posicionMs - 10_000).coerceAtLeast(0)
+                        reproductor?.seekTo(nuevaPos)
+                        posicionMs = nuevaPos
+                    }) {
+                        Icon(Icons.Filled.Replay10, contentDescription = "Retroceder 10 segundos")
+                    }
+
+                    IconButton(onClick = {
+                        if (estaSonando) {
+                            reproductor?.pause()
+                            estaSonando = false
+                        } else {
+                            reproductor?.start()
+                            estaSonando = true
+                        }
+                    }) {
+                        Icon(
+                            if (estaSonando) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            contentDescription = if (estaSonando) "Pausar" else "Reproducir"
+                        )
+                    }
+
+                    IconButton(onClick = {
+                        val nuevaPos = (posicionMs + 10_000).coerceAtMost(duracionMs)
+                        reproductor?.seekTo(nuevaPos)
+                        posicionMs = nuevaPos
+                    }) {
+                        Icon(Icons.Filled.Forward10, contentDescription = "Avanzar 10 segundos")
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                ) {
+                    listOf(0.75f, 1f, 1.25f, 1.5f, 2f).forEach { opcion ->
+                        val seleccionada = velocidad == opcion
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = if (seleccionada) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.clickable { cambiarVelocidad(opcion) }
+                        ) {
+                            Text(
+                                "${opcion}x".replace(".0x", "x"),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (seleccionada) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                }
             }
         }
     }

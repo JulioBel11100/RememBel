@@ -1,63 +1,76 @@
 package com.example.remembel.ui.theme
 
-import android.app.Activity
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import com.example.remembel.EstiloVisual
+import com.example.remembel.TemaApp
 
-private val DarkColorScheme = darkColorScheme(
-    primary = AzulPrincipal,
-    onPrimary = Color.White,
-    primaryContainer = AzulOscuro,
-    onPrimaryContainer = AzulClaro,
-    secondary = AzulClaro,
-    background = TextoOscuro,
-    onBackground = FondoCalido,
-    surface = TextoOscuro,
-    onSurface = FondoCalido
-)
-
-private val LightColorScheme = lightColorScheme(
-    primary = AzulPrincipal,
-    onPrimary = Color.White,
-    primaryContainer = AzulClaro,
-    onPrimaryContainer = AzulOscuro,
-    secondary = AzulOscuro,
-    background = FondoCalido,
-    onBackground = TextoOscuro,
-    surface = SuperficieCalida,
-    onSurface = TextoOscuro,
-    surfaceVariant = AzulClaro,
-    onSurfaceVariant = TextoSuave
-)
+private fun esquemaColores(estilo: EstiloVisual, esOscuro: Boolean) = when {
+    estilo == EstiloVisual.ESENCIAL && !esOscuro -> lightColorScheme(
+        primary = EsencialClaroAcento,
+        onPrimary = Color.White,
+        background = EsencialClaroFondo,
+        onBackground = EsencialClaroTextoPrimario,
+        surface = EsencialClaroSuperficie,
+        onSurface = EsencialClaroTextoPrimario,
+        surfaceVariant = EsencialClaroSuperficie,
+        onSurfaceVariant = EsencialClaroTextoSecundario,
+        error = RojoAlerta
+    )
+    estilo == EstiloVisual.ESENCIAL && esOscuro -> darkColorScheme(
+        primary = EsencialOscuroAcento,
+        onPrimary = Color.Black,
+        background = EsencialOscuroFondo,
+        onBackground = EsencialOscuroTextoPrimario,
+        surface = EsencialOscuroSuperficie,
+        onSurface = EsencialOscuroTextoPrimario,
+        surfaceVariant = EsencialOscuroSuperficie,
+        onSurfaceVariant = EsencialOscuroTextoSecundario,
+        error = RojoAlerta
+    )
+    estilo == EstiloVisual.VIVO && !esOscuro -> lightColorScheme(
+        primary = VivoClaroAcento,
+        onPrimary = Color.White,
+        background = VivoClaroFondo,
+        onBackground = VivoClaroTextoPrimario,
+        surface = VivoClaroSuperficie,
+        onSurface = VivoClaroTextoPrimario,
+        surfaceVariant = VivoClaroFondo,
+        onSurfaceVariant = VivoClaroTextoSecundario,
+        error = RojoAlerta
+    )
+    else -> darkColorScheme(
+        primary = VivoOscuroAcento,
+        onPrimary = Color.Black,
+        background = VivoOscuroFondo,
+        onBackground = VivoOscuroTextoPrimario,
+        surface = VivoOscuroSuperficie,
+        onSurface = VivoOscuroTextoPrimario,
+        surfaceVariant = VivoOscuroSuperficie,
+        onSurfaceVariant = VivoOscuroTextoSecundario,
+        error = RojoAlerta
+    )
+}
 
 @Composable
 fun RememBelTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    estilo: EstiloVisual,
+    tema: TemaApp,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+    val esOscuro = when (tema) {
+        TemaApp.CLARO -> false
+        TemaApp.OSCURO -> true
+        TemaApp.SISTEMA -> isSystemInDarkTheme()
     }
 
     MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
+        colorScheme = esquemaColores(estilo, esOscuro),
+        typography = tipografiaPara(estilo),
         content = content
     )
 }
