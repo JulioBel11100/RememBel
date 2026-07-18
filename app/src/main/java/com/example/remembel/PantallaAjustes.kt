@@ -52,7 +52,7 @@ fun PantallaAjustes(
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text("Ajustes de grabación", style = MaterialTheme.typography.headlineSmall)
+        Text("Modo RememBel", style = MaterialTheme.typography.headlineSmall)
 
         ModoGrabacion.entries.forEach { modo ->
             Row(
@@ -116,7 +116,7 @@ fun PantallaAjustes(
         )
 
         HorizontalDivider()
-        Text("Conservar grabaciones: $retencionDias días", style = MaterialTheme.typography.titleMedium)
+        Text("Conservar archivos: $retencionDias días", style = MaterialTheme.typography.titleMedium)
         Slider(
             value = retencionDias.toFloat(),
             onValueChange = { retencionDias = it.toInt() },
@@ -215,9 +215,9 @@ fun PantallaAjustes(
 }
 
 private fun nombreLegible(modo: ModoGrabacion): String = when (modo) {
-    ModoGrabacion.CONSTANTE -> "Constante (manual)"
+    ModoGrabacion.CONSTANTE -> "Constante"
     ModoGrabacion.HORARIO_FIJO -> "Horario fijo diario"
-    ModoGrabacion.DURACION_LIMITADA -> "Grabar un tiempo y parar sola"
+    ModoGrabacion.DURACION_LIMITADA -> "Duración determinada"
 }
 
 private fun formatearMinutos(totalMin: Int): String {

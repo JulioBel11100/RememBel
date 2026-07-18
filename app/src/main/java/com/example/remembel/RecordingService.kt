@@ -207,11 +207,11 @@ class RecordingService : Service() {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(canal)
         }
-        val texto = if (grabadorActual != null) "Grabando audio..." else "En espera de horario fijo"
+        val texto = if (grabadorActual != null) "Capturando audio" else "En espera de horario fijo"
         return NotificationCompat.Builder(this, canalId)
             .setContentTitle("RememBel")
             .setContentText(texto)
-            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setSmallIcon(R.drawable.ic_notification_remembel)
             .build()
     }
 }

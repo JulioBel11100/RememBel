@@ -76,7 +76,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -260,7 +260,7 @@ fun PantallaPrincipal(
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(
-                imageVector = Icons.Filled.Mic,
+                painter = painterResource(id = R.drawable.ic_notification_remembel),
                 contentDescription = null,
                 modifier = Modifier.size(40.dp),
                 tint = MaterialTheme.colorScheme.primary
@@ -306,7 +306,7 @@ fun PantallaPrincipal(
                         tint = if (estaGrabando) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        if (estaGrabando) "Grabando..." else "En pausa",
+                        if (estaGrabando) "Recordando..." else "En pausa",
                         style = MaterialTheme.typography.titleMedium
                     )
                 }
@@ -319,7 +319,7 @@ fun PantallaPrincipal(
                         interactionSource = interactionEmpezar,
                         modifier = Modifier.escalaAlPulsar(interactionEmpezar)
                     ) {
-                        Icon(Icons.Filled.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
                         Text("Empezar")
                     }
