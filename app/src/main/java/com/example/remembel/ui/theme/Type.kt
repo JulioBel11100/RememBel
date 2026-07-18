@@ -7,7 +7,7 @@ import androidx.compose.ui.unit.sp
 import com.example.remembel.EstiloVisual
 
 fun tipografiaPara(estilo: EstiloVisual): Typography {
-    val escala = if (estilo == EstiloVisual.ESENCIAL) 1.15f else 1f
+    val escala = if (estilo == EstiloVisual.ESENCIAL) 1.15f else 0.9f
 
     return Typography(
         headlineSmall = TextStyle(fontWeight = FontWeight.Bold, fontSize = (24 * escala).sp),

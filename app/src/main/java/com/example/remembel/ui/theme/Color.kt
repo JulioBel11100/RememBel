@@ -32,3 +32,9 @@ val VivoOscuroTextoSecundario = Color(0xFF8C8C8C)
 
 // Color de estado de error/alerta, común a los 4 (mismo rojo, ajustado en contraste)
 val RojoAlerta = Color(0xFFD92D20)
+
+// ---- Colores de "contenedor resaltado" (para la tarjeta mientras graba) ----
+val EsencialClaroContenedor = Color(0xFFF3DCC8)
+val EsencialOscuroContenedor = Color(0xFF4A3324)
+val VivoClaroContenedor = Color(0xFFD9F5EA)
+val VivoOscuroContenedor = Color(0xFF1B3A30)

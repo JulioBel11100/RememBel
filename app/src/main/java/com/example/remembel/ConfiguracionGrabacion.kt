@@ -2,42 +2,35 @@ package com.example.remembel
 
 import android.content.Context
 
-
-enum class EstiloVisual {
-    ESENCIAL, // cálido, quieto, texto grande — prioriza claridad
-    VIVO      // compacto, animado — prioriza modernidad
-}
-
-enum class TemaApp {
-    CLARO, OSCURO, SISTEMA
-}
-/**
- * Los distintos modos en los que puede funcionar la grabación.
- * Un "enum class" es una lista cerrada de valores posibles: aquí solo
- * pueden existir estos tres, nada más — el compilador te avisa si
- * intentas usar algo que no esté en esta lista.
- */
 enum class ModoGrabacion {
     CONSTANTE,
     HORARIO_FIJO,
     DURACION_LIMITADA
 }
-/**
- * Presets de calidad. Un enum puede llevar PROPIEDADES asociadas a cada
- * valor: aquí, cada preset "sabe" su propio bitrate y su nombre visible.
- */
+
 enum class CalidadAudio(val bitrate: Int, val etiqueta: String) {
     AHORRO(32_000, "Ahorro"),
     NORMAL(64_000, "Normal"),
     ALTA(128_000, "Alta"),
     MAXIMA(192_000, "Máxima");
 
-    /** Megabytes que ocupa una hora de grabación con este preset. */
     fun megasPorHora(): Double = bitrate / 8.0 * 3600 / 1_000_000
 }
+
+enum class EstiloVisual {
+    ESENCIAL,
+    VIVO
+}
+
+enum class TemaApp {
+    CLARO, OSCURO, SISTEMA
+}
+
 /**
  * Punto único de acceso a los ajustes guardados de la app.
- * Todo lo relacionado con "leer o escribir configuración" pasa por aquí.
+ * Ahora solo persiste lo que el usuario elige de verdad: el modo de
+ * grabación y sus sub-opciones. Calidad, retención, apariencia y voz
+ * clara quedan fijas en el código (ver RecordingService y MainActivity).
  */
 object ConfiguracionGrabacion {
 
@@ -46,77 +39,7 @@ object ConfiguracionGrabacion {
     private const val CLAVE_HORA_INICIO = "hora_inicio_minutos"
     private const val CLAVE_HORA_FIN = "hora_fin_minutos"
     private const val CLAVE_DURACION_MIN = "duracion_minutos"
-    private const val CLAVE_CALIDAD = "calidad_audio"
-    private const val CLAVE_RETENCION_DIAS = "retencion_dias"
-    private const val CLAVE_VOZ_CLARA = "voz_clara"
-
     private const val CLAVE_ESTABA_ACTIVO = "estaba_activo"
-
-    private const val CLAVE_ESTILO = "estilo_visual"
-    private const val CLAVE_TEMA = "tema_app"
-
-    fun guardarEstilo(context: Context, estilo: EstiloVisual) {
-        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
-        prefs.edit().putString(CLAVE_ESTILO, estilo.name).apply()
-    }
-
-    fun leerEstilo(context: Context): EstiloVisual {
-        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
-        val nombre = prefs.getString(CLAVE_ESTILO, EstiloVisual.ESENCIAL.name)
-        return EstiloVisual.valueOf(nombre ?: EstiloVisual.ESENCIAL.name)
-    }
-
-    fun guardarTema(context: Context, tema: TemaApp) {
-        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
-        prefs.edit().putString(CLAVE_TEMA, tema.name).apply()
-    }
-
-    fun leerTema(context: Context): TemaApp {
-        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
-        val nombre = prefs.getString(CLAVE_TEMA, TemaApp.SISTEMA.name)
-        return TemaApp.valueOf(nombre ?: TemaApp.SISTEMA.name)
-    }
-
-    fun guardarEstabaActivo(context: Context, activo: Boolean) {
-        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
-        prefs.edit().putBoolean(CLAVE_ESTABA_ACTIVO, activo).apply()
-    }
-
-    fun leerEstabaActivo(context: Context): Boolean {
-        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
-        return prefs.getBoolean(CLAVE_ESTABA_ACTIVO, false)
-    }
-
-    fun guardarCalidad(context: Context, calidad: CalidadAudio) {
-        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
-        prefs.edit().putString(CLAVE_CALIDAD, calidad.name).apply()
-    }
-
-    fun leerCalidad(context: Context): CalidadAudio {
-        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
-        val nombre = prefs.getString(CLAVE_CALIDAD, CalidadAudio.NORMAL.name)
-        return CalidadAudio.valueOf(nombre ?: CalidadAudio.NORMAL.name)
-    }
-
-    fun guardarRetencionDias(context: Context, dias: Int) {
-        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
-        prefs.edit().putInt(CLAVE_RETENCION_DIAS, dias).apply()
-    }
-
-    fun leerRetencionDias(context: Context): Int {
-        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
-        return prefs.getInt(CLAVE_RETENCION_DIAS, 2) // por defecto: 2 días
-    }
-
-    fun guardarVozClara(context: Context, activada: Boolean) {
-        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
-        prefs.edit().putBoolean(CLAVE_VOZ_CLARA, activada).apply()
-    }
-
-    fun leerVozClara(context: Context): Boolean {
-        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
-        return prefs.getBoolean(CLAVE_VOZ_CLARA, false)
-    }
 
     fun guardarModo(context: Context, modo: ModoGrabacion) {
         val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
@@ -139,12 +62,12 @@ object ConfiguracionGrabacion {
 
     fun leerHoraInicioMinutos(context: Context): Int {
         val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
-        return prefs.getInt(CLAVE_HORA_INICIO, 9 * 60) // por defecto: 09:00
+        return prefs.getInt(CLAVE_HORA_INICIO, 9 * 60)
     }
 
     fun leerHoraFinMinutos(context: Context): Int {
         val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
-        return prefs.getInt(CLAVE_HORA_FIN, 17 * 60) // por defecto: 17:00
+        return prefs.getInt(CLAVE_HORA_FIN, 17 * 60)
     }
 
     fun guardarDuracionLimitadaMinutos(context: Context, minutos: Int) {
@@ -154,8 +77,16 @@ object ConfiguracionGrabacion {
 
     fun leerDuracionLimitadaMinutos(context: Context): Int {
         val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
-        return prefs.getInt(CLAVE_DURACION_MIN, 60) // por defecto: 60 min
+        return prefs.getInt(CLAVE_DURACION_MIN, 60)
     }
 
-}
+    fun guardarEstabaActivo(context: Context, activo: Boolean) {
+        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(CLAVE_ESTABA_ACTIVO, activo).apply()
+    }
 
+    fun leerEstabaActivo(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
+        return prefs.getBoolean(CLAVE_ESTABA_ACTIVO, false)
+    }
+}

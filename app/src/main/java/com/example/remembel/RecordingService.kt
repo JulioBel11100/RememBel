@@ -25,15 +25,13 @@ class RecordingService : Service() {
         const val ACCION_HORARIO_DETENER = "com.example.remembel.SERVICIO_HORARIO_DETENER"
         const val ACCION_HORARIO_STANDBY = "com.example.remembel.SERVICIO_HORARIO_STANDBY"
 
-        // "Emisora" del estado de grabación: cualquiera puede suscribirse
-        // y recibir automáticamente cada cambio, en el instante en que ocurre.
         private val _estaGrabando = MutableStateFlow(false)
         val estaGrabando: StateFlow<Boolean> = _estaGrabando
     }
 
     private var grabadorActual: MediaRecorder? = null
     private val handler = Handler(Looper.getMainLooper())
-    private val intervaloMs = 15 * 60 * 1000L // 15 minutos en milisegundos
+    private val intervaloMs = 15 * 60 * 1000L
 
     private val runnableCorte = object : Runnable {
         override fun run() {
@@ -49,7 +47,6 @@ class RecordingService : Service() {
 
         when (intent?.action) {
             ACCION_HORARIO_INICIAR -> {
-                // El servicio ya estaba vivo en espera; solo arrancamos a grabar.
                 if (grabadorActual == null) {
                     limpiarGrabacionesAntiguas()
                     empezarGrabacion()
@@ -59,17 +56,12 @@ class RecordingService : Service() {
                 return START_STICKY
             }
             ACCION_HORARIO_DETENER -> {
-                // Paramos de grabar, pero el servicio SIGUE VIVO en espera del
-                // próximo inicio (no llamamos a stopSelf ni matamos nada).
                 handler.removeCallbacks(runnableCorte)
                 detenerGrabacionAcual()
                 actualizarNotificacion()
                 return START_STICKY
             }
             ACCION_HORARIO_STANDBY -> {
-                // Arranque inicial del modo Horario fijo: si ahora mismo estamos
-                // dentro de la franja configurada, empezamos a grabar ya;
-                // si no, el servicio se queda vivo mostrando "en espera".
                 if (dentroDeHorarioConfigurado()) {
                     if (grabadorActual == null) {
                         limpiarGrabacionesAntiguas()
@@ -81,7 +73,6 @@ class RecordingService : Service() {
                 return START_STICKY
             }
             else -> {
-                // Arranque manual normal (modo Constante o Duración limitada).
                 if (grabadorActual != null) {
                     return START_STICKY
                 }
@@ -109,7 +100,6 @@ class RecordingService : Service() {
         return if (minutoInicio <= minutoFin) {
             minutoActual in minutoInicio until minutoFin
         } else {
-            // Horario que cruza medianoche (ej. 22:00 a 06:00)
             minutoActual >= minutoInicio || minutoActual < minutoFin
         }
     }
@@ -128,12 +118,9 @@ class RecordingService : Service() {
         val nombreArchivo = formato.format(Calendar.getInstance().time) + ".m4a"
         val archivo = File(carpeta, nombreArchivo)
 
-        val calidad = ConfiguracionGrabacion.leerCalidad(this)
-        val fuenteAudio = if (ConfiguracionGrabacion.leerVozClara(this)) {
-            MediaRecorder.AudioSource.VOICE_RECOGNITION
-        } else {
-            MediaRecorder.AudioSource.MIC
-        }
+        // Calidad y fuente de audio fijas: siempre la mejor combinación posible.
+        val calidad = CalidadAudio.ALTA
+        val fuenteAudio = MediaRecorder.AudioSource.VOICE_RECOGNITION
 
         grabadorActual = MediaRecorder().apply {
             setAudioSource(fuenteAudio)
@@ -162,13 +149,13 @@ class RecordingService : Service() {
     }
 
     /**
-     * Borra los trozos de audio más antiguos que los días de retención configurados.
+     * Borra los trozos de audio con más de 7 días de antigüedad (fijo).
      */
     private fun limpiarGrabacionesAntiguas() {
         val carpeta = File(getExternalFilesDir(null), "grabaciones")
         val archivos = carpeta.listFiles { f -> f.name.endsWith(".m4a") } ?: return
 
-        val diasDeRetencion = ConfiguracionGrabacion.leerRetencionDias(this).toLong()
+        val diasDeRetencion = 7L
         val limiteMs = System.currentTimeMillis() - (diasDeRetencion * 24 * 60 * 60 * 1000L)
 
         val formato = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.getDefault())
@@ -207,11 +194,11 @@ class RecordingService : Service() {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(canal)
         }
-        val texto = if (grabadorActual != null) "Capturando audio" else "En espera de horario fijo"
+        val texto = if (grabadorActual != null) "Guardando lo que pasa a tu alrededor" else "Listo para recordar cuando toque"
         return NotificationCompat.Builder(this, canalId)
             .setContentTitle("RememBel")
             .setContentText(texto)
-            .setSmallIcon(R.drawable.ic_notification_remembel)
+            .setSmallIcon(R.drawable.ic_launcher)
             .build()
     }
 }
