@@ -21,6 +21,10 @@ import kotlinx.coroutines.flow.StateFlow
 class RecordingService : Service() {
 
     companion object {
+        const val ACCION_HORARIO_INICIAR = "com.example.remembel.SERVICIO_HORARIO_INICIAR"
+        const val ACCION_HORARIO_DETENER = "com.example.remembel.SERVICIO_HORARIO_DETENER"
+        const val ACCION_HORARIO_STANDBY = "com.example.remembel.SERVICIO_HORARIO_STANDBY"
+
         // "Emisora" del estado de grabación: cualquiera puede suscribirse
         // y recibir automáticamente cada cambio, en el instante en que ocurre.
         private val _estaGrabando = MutableStateFlow(false)
@@ -31,8 +35,8 @@ class RecordingService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private val intervaloMs = 15 * 60 * 1000L // 15 minutos en milisegundos
 
-    private val runnableCorte = object : Runnable{
-        override fun run(){
+    private val runnableCorte = object : Runnable {
+        override fun run() {
             cortarYEmpezarNuevoTrozo()
             handler.postDelayed(this, intervaloMs)
         }
@@ -40,40 +44,90 @@ class RecordingService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(1,crearNotification())
-        ConfiguracionGrabacion.guardarEstabaActivo(this, true)
+        startForeground(1, crearNotification())
 
-        // Si ya está grabando, ignoramos esta orden repetida en vez de arrancar un segundo grabador
-        if (grabadorActual != null) {
-            return START_STICKY
+        when (intent?.action) {
+            ACCION_HORARIO_INICIAR -> {
+                // El servicio ya estaba vivo en espera; solo arrancamos a grabar.
+                if (grabadorActual == null) {
+                    limpiarGrabacionesAntiguas()
+                    empezarGrabacion()
+                    programarProximoCorte()
+                }
+                actualizarNotificacion()
+                return START_STICKY
+            }
+            ACCION_HORARIO_DETENER -> {
+                // Paramos de grabar, pero el servicio SIGUE VIVO en espera del
+                // próximo inicio (no llamamos a stopSelf ni matamos nada).
+                handler.removeCallbacks(runnableCorte)
+                detenerGrabacionAcual()
+                actualizarNotificacion()
+                return START_STICKY
+            }
+            ACCION_HORARIO_STANDBY -> {
+                // Arranque inicial del modo Horario fijo: si ahora mismo estamos
+                // dentro de la franja configurada, empezamos a grabar ya;
+                // si no, el servicio se queda vivo mostrando "en espera".
+                if (dentroDeHorarioConfigurado()) {
+                    if (grabadorActual == null) {
+                        limpiarGrabacionesAntiguas()
+                        empezarGrabacion()
+                        programarProximoCorte()
+                    }
+                }
+                actualizarNotificacion()
+                return START_STICKY
+            }
+            else -> {
+                // Arranque manual normal (modo Constante o Duración limitada).
+                if (grabadorActual != null) {
+                    return START_STICKY
+                }
+                limpiarGrabacionesAntiguas()
+                empezarGrabacion()
+                programarProximoCorte()
+                return START_STICKY
+            }
         }
+    }
 
-        limpiarGrabacionesAntiguas()
-
-        //Calculaos cuánto falta para el próximo múltiplo de 15 min
+    private fun programarProximoCorte() {
         val ahora = Calendar.getInstance()
         val minutoActual = ahora.get(Calendar.MINUTE)
         val minutosParaSiguienteCorte = 15 - (minutoActual % 15)
         val msParaSiguienteCorte = (minutosParaSiguienteCorte * 60 * 1000L) - (ahora.get(Calendar.SECOND) * 1000L)
-
-        empezarGrabacion()
         handler.postDelayed(runnableCorte, msParaSiguienteCorte)
-
-        return START_STICKY
     }
-    private fun cortarYEmpezarNuevoTrozo(){
+
+    private fun dentroDeHorarioConfigurado(): Boolean {
+        val minutoInicio = ConfiguracionGrabacion.leerHoraInicioMinutos(this)
+        val minutoFin = ConfiguracionGrabacion.leerHoraFinMinutos(this)
+        val ahora = Calendar.getInstance()
+        val minutoActual = ahora.get(Calendar.HOUR_OF_DAY) * 60 + ahora.get(Calendar.MINUTE)
+        return if (minutoInicio <= minutoFin) {
+            minutoActual in minutoInicio until minutoFin
+        } else {
+            // Horario que cruza medianoche (ej. 22:00 a 06:00)
+            minutoActual >= minutoInicio || minutoActual < minutoFin
+        }
+    }
+
+    private fun cortarYEmpezarNuevoTrozo() {
         detenerGrabacionAcual()
         empezarGrabacion()
         limpiarGrabacionesAntiguas()
     }
-    private fun empezarGrabacion(){
+
+    private fun empezarGrabacion() {
         val carpeta = File(getExternalFilesDir(null), "grabaciones")
-        if(!carpeta.exists()) carpeta.mkdirs()
+        if (!carpeta.exists()) carpeta.mkdirs()
+
         val formato = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.getDefault())
         val nombreArchivo = formato.format(Calendar.getInstance().time) + ".m4a"
         val archivo = File(carpeta, nombreArchivo)
+
         val calidad = ConfiguracionGrabacion.leerCalidad(this)
         val fuenteAudio = if (ConfiguracionGrabacion.leerVozClara(this)) {
             MediaRecorder.AudioSource.VOICE_RECOGNITION
@@ -81,7 +135,7 @@ class RecordingService : Service() {
             MediaRecorder.AudioSource.MIC
         }
 
-        grabadorActual = MediaRecorder().apply{
+        grabadorActual = MediaRecorder().apply {
             setAudioSource(fuenteAudio)
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
@@ -93,11 +147,12 @@ class RecordingService : Service() {
         }
         _estaGrabando.value = true
     }
-    private fun detenerGrabacionAcual(){
-        grabadorActual?.apply{
-            try{
+
+    private fun detenerGrabacionAcual() {
+        grabadorActual?.apply {
+            try {
                 stop()
-            }catch (e: Exception){
+            } catch (e: Exception) {
                 // Si el trozo dura muy poco, stop() puede lanzar excepción; lo ignoramos
             }
             release()
@@ -105,10 +160,9 @@ class RecordingService : Service() {
         grabadorActual = null
         _estaGrabando.value = false
     }
+
     /**
-     * Borra los trozos de audio con más de 7 días de antigüedad.
-     * Se llama cada vez que se crea un trozo nuevo, así la limpieza
-     * ocurre sola sin necesidad de un mecanismo aparte.
+     * Borra los trozos de audio más antiguos que los días de retención configurados.
      */
     private fun limpiarGrabacionesAntiguas() {
         val carpeta = File(getExternalFilesDir(null), "grabaciones")
@@ -126,32 +180,37 @@ class RecordingService : Service() {
             } catch (e: Exception) {
                 null
             }
-
-            // Si no podemos leer la fecha del nombre, usamos la fecha de modificación del archivo como respaldo
             val momentoDelTrozo = inicioTrozo ?: archivo.lastModified()
-
             if (momentoDelTrozo < limiteMs) {
                 archivo.delete()
             }
         }
     }
-    override fun onDestroy(){
+
+    override fun onDestroy() {
         super.onDestroy()
         handler.removeCallbacks(runnableCorte)
         detenerGrabacionAcual()
-        ConfiguracionGrabacion.guardarEstabaActivo(this, false)
     }
-    private fun crearNotification(): Notification{
+
+    private fun actualizarNotificacion() {
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.notify(1, crearNotification())
+    }
+
+    private fun crearNotification(): Notification {
         val canalId = "grabacion_channel"
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O){
-            val canal = NotificationChannel(canalId,"Grabación en curso",NotificationManager.IMPORTANCE_LOW
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val canal = NotificationChannel(
+                canalId, "Grabación en curso", NotificationManager.IMPORTANCE_LOW
             )
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(canal)
         }
+        val texto = if (grabadorActual != null) "Grabando audio..." else "En espera de horario fijo"
         return NotificationCompat.Builder(this, canalId)
             .setContentTitle("RememBel")
-            .setContentText("Grabando audio...")
+            .setContentText(texto)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .build()
     }

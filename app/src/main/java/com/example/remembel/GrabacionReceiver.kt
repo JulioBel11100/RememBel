@@ -5,8 +5,10 @@ import android.content.Context
 import android.content.Intent
 
 /**
- * Escucha las alarmas programadas por AlarmScheduler y arranca/para
- * el servicio de grabación en consecuencia.
+ * Escucha las alarmas de horario fijo y envía el aviso al RecordingService,
+ * que YA ESTÁ VIVO (arrancado desde Ajustes con la app abierta) — por eso
+ * este simple startService() basta, sin necesitar ningún truco de
+ * "Activity trampolín": el servicio no necesita volver a "nacer".
  */
 class GrabacionReceiver : BroadcastReceiver() {
 
@@ -16,13 +18,18 @@ class GrabacionReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        when (intent.action) {
-            ACCION_INICIAR -> {
-                context.startForegroundService(Intent(context, RecordingService::class.java))
-            }
-            ACCION_DETENER -> {
-                context.stopService(Intent(context, RecordingService::class.java))
-            }
+        val accionServicio = when (intent.action) {
+            ACCION_INICIAR -> RecordingService.ACCION_HORARIO_INICIAR
+            ACCION_DETENER -> RecordingService.ACCION_HORARIO_DETENER
+            else -> return
+        }
+
+        context.startService(
+            Intent(context, RecordingService::class.java).setAction(accionServicio)
+        )
+
+        if (ConfiguracionGrabacion.leerModo(context) == ModoGrabacion.HORARIO_FIJO) {
+            AlarmScheduler.programarHorarioFijo(context)
         }
     }
 }

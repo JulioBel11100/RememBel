@@ -28,7 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
-
 @Composable
 fun PantallaAjustes(
     modifier: Modifier = Modifier,
@@ -36,15 +35,15 @@ fun PantallaAjustes(
 ) {
     val context = LocalContext.current
 
-
-
     var modoElegido by remember { mutableStateOf(ConfiguracionGrabacion.leerModo(context)) }
     var horaInicioMin by remember { mutableIntStateOf(ConfiguracionGrabacion.leerHoraInicioMinutos(context)) }
     var horaFinMin by remember { mutableIntStateOf(ConfiguracionGrabacion.leerHoraFinMinutos(context)) }
-    var duracionMin by remember { mutableIntStateOf(ConfiguracionGrabacion.leerDuracionLimitadaMinutos(context))  }
+    var duracionMin by remember { mutableIntStateOf(ConfiguracionGrabacion.leerDuracionLimitadaMinutos(context)) }
     var calidadElegida by remember { mutableStateOf(ConfiguracionGrabacion.leerCalidad(context)) }
     var retencionDias by remember { mutableIntStateOf(ConfiguracionGrabacion.leerRetencionDias(context)) }
     var vozClara by remember { mutableStateOf(ConfiguracionGrabacion.leerVozClara(context)) }
+    var estiloElegido by remember { mutableStateOf(ConfiguracionGrabacion.leerEstilo(context)) }
+    var temaElegido by remember { mutableStateOf(ConfiguracionGrabacion.leerTema(context)) }
 
     Column(
         modifier = modifier
@@ -93,6 +92,7 @@ fun PantallaAjustes(
                 )
             }
         }
+
         HorizontalDivider()
         Text("Calidad de audio", style = MaterialTheme.typography.titleMedium)
 
@@ -144,11 +144,9 @@ fun PantallaAjustes(
             }
             Switch(checked = vozClara, onCheckedChange = { vozClara = it })
         }
+
         HorizontalDivider()
         Text("Apariencia", style = MaterialTheme.typography.titleMedium)
-
-        var estiloElegido by remember { mutableStateOf(ConfiguracionGrabacion.leerEstilo(context)) }
-        var temaElegido by remember { mutableStateOf(ConfiguracionGrabacion.leerTema(context)) }
 
         Text("Estilo", style = MaterialTheme.typography.bodyMedium)
         EstiloVisual.entries.forEach { estilo ->
@@ -171,28 +169,30 @@ fun PantallaAjustes(
                 )
             }
         }
+
         Button(
             onClick = {
                 ConfiguracionGrabacion.guardarModo(context, modoElegido)
                 ConfiguracionGrabacion.guardarCalidad(context, calidadElegida)
                 ConfiguracionGrabacion.guardarRetencionDias(context, retencionDias)
                 ConfiguracionGrabacion.guardarVozClara(context, vozClara)
-                AlarmScheduler.cancelarTodasLasAlarmas(context)
                 ConfiguracionGrabacion.guardarEstilo(context, estiloElegido)
                 ConfiguracionGrabacion.guardarTema(context, temaElegido)
+                AlarmScheduler.cancelarTodasLasAlarmas(context)
 
                 when (modoElegido) {
                     ModoGrabacion.HORARIO_FIJO -> {
                         ConfiguracionGrabacion.guardarHorarioFijo(context, horaInicioMin, horaFinMin)
                         AlarmScheduler.programarHorarioFijo(context)
+                        context.startForegroundService(
+                            Intent(context, RecordingService::class.java)
+                                .setAction(RecordingService.ACCION_HORARIO_STANDBY)
+                        )
                     }
                     ModoGrabacion.DURACION_LIMITADA -> {
                         ConfiguracionGrabacion.guardarDuracionLimitadaMinutos(context, duracionMin)
                         context.startForegroundService(
-                            Intent(
-                                context,
-                                RecordingService::class.java
-                            )
+                            Intent(context, RecordingService::class.java)
                         )
                         AlarmScheduler.programarDuracionLimitada(context)
                     }
