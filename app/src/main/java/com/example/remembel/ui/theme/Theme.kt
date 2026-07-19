@@ -9,10 +9,12 @@ import androidx.compose.ui.graphics.Color
 import com.example.remembel.EstiloVisual
 import com.example.remembel.TemaApp
 
-private fun esquemaColores(estilo: EstiloVisual, esOscuro: Boolean) = when (estilo) {
-    EstiloVisual.ESENCIAL if !esOscuro -> lightColorScheme(
+private fun esquemaColores(estilo: EstiloVisual, esOscuro: Boolean) = when {
+    estilo == EstiloVisual.ESENCIAL && !esOscuro -> lightColorScheme(
         primary = EsencialClaroAcento,
         onPrimary = Color.White,
+        primaryContainer = EsencialClaroContenedor,
+        onPrimaryContainer = EsencialClaroTextoPrimario,
         background = EsencialClaroFondo,
         onBackground = EsencialClaroTextoPrimario,
         surface = EsencialClaroSuperficie,
@@ -21,9 +23,11 @@ private fun esquemaColores(estilo: EstiloVisual, esOscuro: Boolean) = when (esti
         onSurfaceVariant = EsencialClaroTextoSecundario,
         error = RojoAlerta
     )
-    EstiloVisual.ESENCIAL if true -> darkColorScheme(
+    estilo == EstiloVisual.ESENCIAL && esOscuro -> darkColorScheme(
         primary = EsencialOscuroAcento,
         onPrimary = Color.Black,
+        primaryContainer = EsencialOscuroContenedor,
+        onPrimaryContainer = EsencialOscuroTextoPrimario,
         background = EsencialOscuroFondo,
         onBackground = EsencialOscuroTextoPrimario,
         surface = EsencialOscuroSuperficie,
@@ -32,9 +36,11 @@ private fun esquemaColores(estilo: EstiloVisual, esOscuro: Boolean) = when (esti
         onSurfaceVariant = EsencialOscuroTextoSecundario,
         error = RojoAlerta
     )
-    EstiloVisual.VIVO if !esOscuro -> lightColorScheme(
+    estilo == EstiloVisual.VIVO && !esOscuro -> lightColorScheme(
         primary = VivoClaroAcento,
         onPrimary = Color.White,
+        primaryContainer = VivoClaroContenedor,
+        onPrimaryContainer = VivoClaroTextoPrimario,
         background = VivoClaroFondo,
         onBackground = VivoClaroTextoPrimario,
         surface = VivoClaroSuperficie,
@@ -46,6 +52,8 @@ private fun esquemaColores(estilo: EstiloVisual, esOscuro: Boolean) = when (esti
     else -> darkColorScheme(
         primary = VivoOscuroAcento,
         onPrimary = Color.Black,
+        primaryContainer = VivoOscuroContenedor,
+        onPrimaryContainer = VivoOscuroTextoPrimario,
         background = VivoOscuroFondo,
         onBackground = VivoOscuroTextoPrimario,
         surface = VivoOscuroSuperficie,

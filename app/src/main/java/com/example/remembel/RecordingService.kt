@@ -83,6 +83,7 @@ class RecordingService : Service() {
                 limpiarGrabacionesAntiguas()
                 empezarGrabacion()
                 programarProximoCorte()
+                ConfiguracionGrabacion.guardarEstabaActivo(this, true)
                 return START_STICKY
             }
         }
@@ -151,6 +152,7 @@ class RecordingService : Service() {
         }
         grabadorActual = null
         _estaGrabando.value = false
+        ConfiguracionGrabacion.guardarEstabaActivo(this, false)
     }
 
     /**
@@ -204,7 +206,7 @@ class RecordingService : Service() {
         return NotificationCompat.Builder(this, canalId)
             .setContentTitle("RememBel")
             .setContentText(texto)
-            .setSmallIcon(R.drawable.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification_remembel)
             .build()
     }
 }

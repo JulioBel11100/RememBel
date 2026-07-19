@@ -124,9 +124,11 @@ fun PantallaBiblioteca(
         }
     }
 
-    Column(modifier = modifier
-        .fillMaxSize()
-        .padding(16.dp)) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
 
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             IconButton(onClick = {
@@ -420,9 +422,11 @@ private fun ElementoBiblioteca(
             contentDescription = null
         )
         Spacer(Modifier.width(12.dp))
-        Text(archivo.name, modifier = Modifier
-            .weight(1f)
-            .clickable(onClick = onAbrir))
+        Text(
+            archivo.name, modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onAbrir)
+        )
         if (onRenombrar != null || onBorrar != null) {
             Box {
                 IconButton(onClick = { menuAbierto = true }) {

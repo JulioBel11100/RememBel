@@ -57,6 +57,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -219,6 +220,7 @@ fun PantallaPrincipal(
     var horaInicio by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var horaFin by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var mensaje by remember { mutableStateOf("") }
+    var mensajeModo by remember { mutableStateOf("") }
 
     var reproductor by remember { mutableStateOf<MediaPlayer?>(null) }
     var archivoTemporalRecuperado by remember { mutableStateOf<File?>(null) }
@@ -347,19 +349,17 @@ fun PantallaPrincipal(
                     }
 
                     val interactionDetener = remember { MutableInteractionSource() }
-                    OutlinedButton(
+                    Button(
                         onClick = { onDetener() },
                         enabled = estaGrabando,
                         interactionSource = interactionDetener,
-                        modifier = Modifier
-                            .weight(1f)
-                            .escalaAlPulsar(interactionDetener)
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
+                        ),
+                        modifier = Modifier.weight(1f).escalaAlPulsar(interactionDetener)
                     ) {
-                        Icon(
-                            Icons.Filled.Stop,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Icon(Icons.Filled.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
                         Text("Detener", maxLines = 1)
                     }
@@ -415,23 +415,25 @@ fun PantallaPrincipal(
                     val interactionActivarHorario = remember { MutableInteractionSource() }
                     Button(
                         onClick = {
-                            ConfiguracionGrabacion.guardarHorarioFijo(
-                                context,
-                                horaInicioMin,
-                                horaFinMin
-                            )
+                            ConfiguracionGrabacion.guardarHorarioFijo(context, horaInicioMin, horaFinMin)
                             AlarmScheduler.programarHorarioFijo(context)
                             context.startForegroundService(
                                 Intent(context, RecordingService::class.java)
                                     .setAction(RecordingService.ACCION_HORARIO_STANDBY)
                             )
+                            mensajeModo = "✓ Horario activado: de ${formatearMinutos(horaInicioMin)} a ${formatearMinutos(horaFinMin)}, cada día"
                         },
                         interactionSource = interactionActivarHorario,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .escalaAlPulsar(interactionActivarHorario)
+                        modifier = Modifier.fillMaxWidth().escalaAlPulsar(interactionActivarHorario)
                     ) {
                         Text("Activar horario fijo")
+                    }
+                    if (mensajeModo.isNotEmpty()) {
+                        Text(
+                            mensajeModo,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
 
@@ -448,24 +450,22 @@ fun PantallaPrincipal(
                     val interactionGrabarTiempo = remember { MutableInteractionSource() }
                     Button(
                         onClick = {
-                            ConfiguracionGrabacion.guardarDuracionLimitadaMinutos(
-                                context,
-                                duracionMin
-                            )
-                            context.startForegroundService(
-                                Intent(
-                                    context,
-                                    RecordingService::class.java
-                                )
-                            )
+                            ConfiguracionGrabacion.guardarDuracionLimitadaMinutos(context, duracionMin)
+                            context.startForegroundService(Intent(context, RecordingService::class.java))
                             AlarmScheduler.programarDuracionLimitada(context)
+                            mensajeModo = "✓ Grabando ahora durante ${formatearMinutos(duracionMin)}"
                         },
                         interactionSource = interactionGrabarTiempo,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .escalaAlPulsar(interactionGrabarTiempo)
+                        modifier = Modifier.fillMaxWidth().escalaAlPulsar(interactionGrabarTiempo)
                     ) {
                         Text("Grabar durante este tiempo")
+                    }
+                    if (mensajeModo.isNotEmpty()) {
+                        Text(
+                            mensajeModo,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }
