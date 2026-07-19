@@ -8,15 +8,6 @@ enum class ModoGrabacion {
     DURACION_LIMITADA
 }
 
-enum class CalidadAudio(val bitrate: Int, val etiqueta: String) {
-    AHORRO(32_000, "Ahorro"),
-    NORMAL(64_000, "Normal"),
-    ALTA(128_000, "Alta"),
-    MAXIMA(192_000, "Máxima");
-
-    fun megasPorHora(): Double = bitrate / 8.0 * 3600 / 1_000_000
-}
-
 enum class EstiloVisual {
     ESENCIAL,
     VIVO
@@ -28,9 +19,9 @@ enum class TemaApp {
 
 /**
  * Punto único de acceso a los ajustes guardados de la app.
- * Ahora solo persiste lo que el usuario elige de verdad: el modo de
- * grabación y sus sub-opciones. Calidad, retención, apariencia y voz
- * clara quedan fijas en el código (ver RecordingService y MainActivity).
+ * Solo persiste lo que el usuario elige de verdad: el modo de
+ * grabación y sus sub-opciones. Calidad, apariencia y voz clara
+ * quedan fijas en el código (ver RecordingService y MainActivity).
  */
 object ConfiguracionGrabacion {
 

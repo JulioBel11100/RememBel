@@ -19,6 +19,7 @@ class ArranqueAutomaticoReceiver : BroadcastReceiver() {
                     context.startForegroundService(Intent(context, RecordingService::class.java))
                 }
             }
+
             ModoGrabacion.HORARIO_FIJO -> {
                 AlarmScheduler.programarHorarioFijo(context)
                 context.startForegroundService(
@@ -26,6 +27,7 @@ class ArranqueAutomaticoReceiver : BroadcastReceiver() {
                         .setAction(RecordingService.ACCION_HORARIO_STANDBY)
                 )
             }
+
             ModoGrabacion.DURACION_LIMITADA -> {
                 // Una cuenta atrás no tiene sentido retomarla tras un reinicio;
                 // el usuario debe volver a activarla conscientemente.

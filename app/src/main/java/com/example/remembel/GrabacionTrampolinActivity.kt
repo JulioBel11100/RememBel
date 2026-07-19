@@ -24,9 +24,11 @@ class GrabacionTrampolinActivity : ComponentActivity() {
             GrabacionReceiver.ACCION_INICIAR -> {
                 startForegroundService(Intent(this, RecordingService::class.java))
             }
+
             GrabacionReceiver.ACCION_DETENER -> {
                 stopService(Intent(this, RecordingService::class.java))
             }
+
             else -> {
                 // Sin acción explícita (caso del azulejo de Ajustes Rápidos): alternar.
                 if (RecordingService.estaGrabando.value) {

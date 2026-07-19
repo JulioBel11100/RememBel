@@ -9,8 +9,8 @@ import androidx.compose.ui.graphics.Color
 import com.example.remembel.EstiloVisual
 import com.example.remembel.TemaApp
 
-private fun esquemaColores(estilo: EstiloVisual, esOscuro: Boolean) = when {
-    estilo == EstiloVisual.ESENCIAL && !esOscuro -> lightColorScheme(
+private fun esquemaColores(estilo: EstiloVisual, esOscuro: Boolean) = when (estilo) {
+    EstiloVisual.ESENCIAL if !esOscuro -> lightColorScheme(
         primary = EsencialClaroAcento,
         onPrimary = Color.White,
         background = EsencialClaroFondo,
@@ -21,7 +21,7 @@ private fun esquemaColores(estilo: EstiloVisual, esOscuro: Boolean) = when {
         onSurfaceVariant = EsencialClaroTextoSecundario,
         error = RojoAlerta
     )
-    estilo == EstiloVisual.ESENCIAL && esOscuro -> darkColorScheme(
+    EstiloVisual.ESENCIAL if true -> darkColorScheme(
         primary = EsencialOscuroAcento,
         onPrimary = Color.Black,
         background = EsencialOscuroFondo,
@@ -32,7 +32,7 @@ private fun esquemaColores(estilo: EstiloVisual, esOscuro: Boolean) = when {
         onSurfaceVariant = EsencialOscuroTextoSecundario,
         error = RojoAlerta
     )
-    estilo == EstiloVisual.VIVO && !esOscuro -> lightColorScheme(
+    EstiloVisual.VIVO if !esOscuro -> lightColorScheme(
         primary = VivoClaroAcento,
         onPrimary = Color.White,
         background = VivoClaroFondo,

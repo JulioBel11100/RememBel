@@ -6,17 +6,17 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.media.MediaRecorder
-import android.os.Handler
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 
 class RecordingService : Service() {
 
@@ -25,6 +25,7 @@ class RecordingService : Service() {
         const val ACCION_HORARIO_DETENER = "com.example.remembel.SERVICIO_HORARIO_DETENER"
         const val ACCION_HORARIO_STANDBY = "com.example.remembel.SERVICIO_HORARIO_STANDBY"
 
+        private const val BITRATE_FIJO = 128_000
         private val _estaGrabando = MutableStateFlow(false)
         val estaGrabando: StateFlow<Boolean> = _estaGrabando
     }
@@ -55,12 +56,14 @@ class RecordingService : Service() {
                 actualizarNotificacion()
                 return START_STICKY
             }
+
             ACCION_HORARIO_DETENER -> {
                 handler.removeCallbacks(runnableCorte)
                 detenerGrabacionAcual()
                 actualizarNotificacion()
                 return START_STICKY
             }
+
             ACCION_HORARIO_STANDBY -> {
                 if (dentroDeHorarioConfigurado()) {
                     if (grabadorActual == null) {
@@ -72,6 +75,7 @@ class RecordingService : Service() {
                 actualizarNotificacion()
                 return START_STICKY
             }
+
             else -> {
                 if (grabadorActual != null) {
                     return START_STICKY
@@ -88,7 +92,8 @@ class RecordingService : Service() {
         val ahora = Calendar.getInstance()
         val minutoActual = ahora.get(Calendar.MINUTE)
         val minutosParaSiguienteCorte = 15 - (minutoActual % 15)
-        val msParaSiguienteCorte = (minutosParaSiguienteCorte * 60 * 1000L) - (ahora.get(Calendar.SECOND) * 1000L)
+        val msParaSiguienteCorte =
+            (minutosParaSiguienteCorte * 60 * 1000L) - (ahora.get(Calendar.SECOND) * 1000L)
         handler.postDelayed(runnableCorte, msParaSiguienteCorte)
     }
 
@@ -119,14 +124,14 @@ class RecordingService : Service() {
         val archivo = File(carpeta, nombreArchivo)
 
         // Calidad y fuente de audio fijas: siempre la mejor combinación posible.
-        val calidad = CalidadAudio.ALTA
+
         val fuenteAudio = MediaRecorder.AudioSource.VOICE_RECOGNITION
 
         grabadorActual = MediaRecorder().apply {
             setAudioSource(fuenteAudio)
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            setAudioEncodingBitRate(calidad.bitrate)
+            setAudioEncodingBitRate(BITRATE_FIJO)
             setAudioSamplingRate(44100)
             setOutputFile(archivo.absolutePath)
             prepare()
@@ -194,7 +199,8 @@ class RecordingService : Service() {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(canal)
         }
-        val texto = if (grabadorActual != null) "Guardando lo que pasa a tu alrededor" else "Listo para recordar cuando toque"
+        val texto =
+            if (grabadorActual != null) "Guardando lo que pasa a tu alrededor" else "Listo para recordar cuando toque"
         return NotificationCompat.Builder(this, canalId)
             .setContentTitle("RememBel")
             .setContentText(texto)

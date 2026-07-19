@@ -14,8 +14,16 @@ fun tipografiaPara(estilo: EstiloVisual): Typography {
         headlineMedium = TextStyle(fontWeight = FontWeight.Bold, fontSize = (28 * escala).sp),
         titleLarge = TextStyle(fontWeight = FontWeight.Medium, fontSize = (22 * escala).sp),
         titleMedium = TextStyle(fontWeight = FontWeight.Medium, fontSize = (18 * escala).sp),
-        bodyLarge = TextStyle(fontWeight = FontWeight.Normal, fontSize = (17 * escala).sp, lineHeight = (25 * escala).sp),
-        bodyMedium = TextStyle(fontWeight = FontWeight.Normal, fontSize = (15 * escala).sp, lineHeight = (22 * escala).sp),
+        bodyLarge = TextStyle(
+            fontWeight = FontWeight.Normal,
+            fontSize = (17 * escala).sp,
+            lineHeight = (25 * escala).sp
+        ),
+        bodyMedium = TextStyle(
+            fontWeight = FontWeight.Normal,
+            fontSize = (15 * escala).sp,
+            lineHeight = (22 * escala).sp
+        ),
         bodySmall = TextStyle(fontWeight = FontWeight.Normal, fontSize = (13 * escala).sp)
     )
 }

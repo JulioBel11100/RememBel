@@ -1,10 +1,10 @@
 package com.example.remembel
 
-import android.os.Build
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import java.util.Calendar
 
 /**
@@ -75,6 +75,7 @@ object AlarmScheduler {
             crearPendingIntent(context, GrabacionReceiver.ACCION_DETENER, CODIGO_FIN_DURACION)
         )
     }
+
     /**
      * Programa una alarma exacta de forma segura: comprueba primero si tenemos
      * permiso (revocable por el usuario desde Android 12) y, si no lo hay,
@@ -109,8 +110,26 @@ object AlarmScheduler {
 
     fun cancelarTodasLasAlarmas(context: Context) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        alarmManager.cancel(crearPendingIntent(context, GrabacionReceiver.ACCION_INICIAR, CODIGO_INICIO))
-        alarmManager.cancel(crearPendingIntent(context, GrabacionReceiver.ACCION_DETENER, CODIGO_FIN))
-        alarmManager.cancel(crearPendingIntent(context, GrabacionReceiver.ACCION_DETENER, CODIGO_FIN_DURACION))
+        alarmManager.cancel(
+            crearPendingIntent(
+                context,
+                GrabacionReceiver.ACCION_INICIAR,
+                CODIGO_INICIO
+            )
+        )
+        alarmManager.cancel(
+            crearPendingIntent(
+                context,
+                GrabacionReceiver.ACCION_DETENER,
+                CODIGO_FIN
+            )
+        )
+        alarmManager.cancel(
+            crearPendingIntent(
+                context,
+                GrabacionReceiver.ACCION_DETENER,
+                CODIGO_FIN_DURACION
+            )
+        )
     }
 }

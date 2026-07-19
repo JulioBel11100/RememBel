@@ -1,40 +1,35 @@
 package com.example.remembel
 
 
+import android.content.Context
+import android.media.MediaPlayer
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.material.icons.filled.Replay10
-import androidx.compose.material.icons.filled.Forward10
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Surface
-import android.media.MediaPlayer
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.Slider
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import kotlinx.coroutines.delay
-import android.content.Context
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -43,9 +38,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import java.io.File
 
 @Composable
@@ -96,6 +96,7 @@ fun PantallaBiblioteca(
         val hijos = carpetaActual.listFiles()?.toList() ?: emptyList()
         hijos.sortedWith(compareBy({ !it.isDirectory }, { it.name }))
     }
+
     fun reproducir(archivo: File) {
         reproductor?.release()
         velocidad = 1f
@@ -123,7 +124,9 @@ fun PantallaBiblioteca(
         }
     }
 
-    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier = modifier
+        .fillMaxSize()
+        .padding(16.dp)) {
 
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             IconButton(onClick = {
@@ -170,7 +173,9 @@ fun PantallaBiblioteca(
                     },
                     onRenombrar = { elementoParaRenombrar = elemento },
                     onBorrar = { elementoParaBorrar = elemento },
-                    onMover = if (!elemento.isDirectory) { { elementoParaMover = elemento } } else null
+                    onMover = if (!elemento.isDirectory) {
+                        { elementoParaMover = elemento }
+                    } else null
                 )
             }
         }
@@ -193,7 +198,10 @@ fun PantallaBiblioteca(
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                    horizontalArrangement = Arrangement.spacedBy(
+                        16.dp,
+                        Alignment.CenterHorizontally
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     IconButton(onClick = {
@@ -309,9 +317,11 @@ fun PantallaBiblioteca(
                         destino == archivo -> {
                             // El nombre no cambió realmente; no hacemos nada.
                         }
+
                         destino.exists() -> {
                             mensaje = "Ya existe algo llamado \"${destino.name}\" aquí."
                         }
+
                         else -> {
                             val exito = archivo.renameTo(destino)
                             mensaje = if (exito) "" else "No se pudo renombrar. Inténtalo de nuevo."
@@ -362,12 +372,16 @@ fun PantallaBiblioteca(
                                         destino == archivo.parentFile -> {
                                             mensaje = "Ya está en esa carpeta."
                                         }
+
                                         destinoFinal.exists() -> {
-                                            mensaje = "Ya existe \"${archivo.name}\" en esa carpeta."
+                                            mensaje =
+                                                "Ya existe \"${archivo.name}\" en esa carpeta."
                                         }
+
                                         else -> {
                                             val exito = archivo.renameTo(destinoFinal)
-                                            mensaje = if (exito) "" else "No se pudo mover. Inténtalo de nuevo."
+                                            mensaje =
+                                                if (exito) "" else "No se pudo mover. Inténtalo de nuevo."
                                         }
                                     }
                                     elementoParaMover = null
@@ -397,11 +411,18 @@ private fun ElementoBiblioteca(
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
     ) {
-        Icon(if (archivo.isDirectory) Icons.Filled.Folder else Icons.Filled.AudioFile, contentDescription = null)
+        Icon(
+            if (archivo.isDirectory) Icons.Filled.Folder else Icons.Filled.AudioFile,
+            contentDescription = null
+        )
         Spacer(Modifier.width(12.dp))
-        Text(archivo.name, modifier = Modifier.weight(1f).clickable(onClick = onAbrir))
+        Text(archivo.name, modifier = Modifier
+            .weight(1f)
+            .clickable(onClick = onAbrir))
         if (onRenombrar != null || onBorrar != null) {
             Box {
                 IconButton(onClick = { menuAbierto = true }) {
@@ -409,13 +430,19 @@ private fun ElementoBiblioteca(
                 }
                 DropdownMenu(expanded = menuAbierto, onDismissRequest = { menuAbierto = false }) {
                     if (onRenombrar != null) {
-                        DropdownMenuItem(text = { Text("Renombrar") }, onClick = { menuAbierto = false; onRenombrar() })
+                        DropdownMenuItem(
+                            text = { Text("Renombrar") },
+                            onClick = { menuAbierto = false; onRenombrar() })
                     }
                     if (onMover != null) {
-                        DropdownMenuItem(text = { Text("Mover a...") }, onClick = { menuAbierto = false; onMover() })
+                        DropdownMenuItem(
+                            text = { Text("Mover a...") },
+                            onClick = { menuAbierto = false; onMover() })
                     }
                     if (onBorrar != null) {
-                        DropdownMenuItem(text = { Text("Borrar") }, onClick = { menuAbierto = false; onBorrar() })
+                        DropdownMenuItem(
+                            text = { Text("Borrar") },
+                            onClick = { menuAbierto = false; onBorrar() })
                     }
                 }
             }
@@ -429,8 +456,6 @@ fun obtenerCarpetaBiblioteca(context: Context): File {
     return carpeta
 }
 
-fun obtenerCarpetaGrabaciones(context: Context): File =
-    File(context.getExternalFilesDir(null), "grabaciones")
 /**
  * Recorre recursivamente todas las subcarpetas a partir de "base" y devuelve
  * una lista de pares (ruta legible, carpeta real) para mostrar en un selector.
