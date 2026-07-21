@@ -17,12 +17,6 @@ enum class TemaApp {
     CLARO, OSCURO, SISTEMA
 }
 
-/**
- * Punto único de acceso a los ajustes guardados de la app.
- * Solo persiste lo que el usuario elige de verdad: el modo de
- * grabación y sus sub-opciones. Calidad, apariencia y voz clara
- * quedan fijas en el código (ver RecordingService y MainActivity).
- */
 object ConfiguracionGrabacion {
 
     private const val NOMBRE_PREFS = "remembel_configuracion"
@@ -31,6 +25,7 @@ object ConfiguracionGrabacion {
     private const val CLAVE_HORA_FIN = "hora_fin_minutos"
     private const val CLAVE_DURACION_MIN = "duracion_minutos"
     private const val CLAVE_ESTABA_ACTIVO = "estaba_activo"
+    private const val CLAVE_GUIA_VISTA = "guia_vista"
 
     fun guardarModo(context: Context, modo: ModoGrabacion) {
         val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
@@ -79,5 +74,15 @@ object ConfiguracionGrabacion {
     fun leerEstabaActivo(context: Context): Boolean {
         val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
         return prefs.getBoolean(CLAVE_ESTABA_ACTIVO, false)
+    }
+
+    fun guardarGuiaVista(context: Context, vista: Boolean) {
+        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(CLAVE_GUIA_VISTA, vista).apply()
+    }
+
+    fun leerGuiaVista(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
+        return prefs.getBoolean(CLAVE_GUIA_VISTA, false)
     }
 }
