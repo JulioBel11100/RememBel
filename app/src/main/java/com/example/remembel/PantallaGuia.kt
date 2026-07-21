@@ -38,12 +38,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
-/**
- * Cada página de la guía trae su propio título/descripción, y una función
- * @Composable para dibujar su icono — así cada página puede usar el tipo de
- * icono que necesite (un ImageVector de Material Icons, o tu propio dibujo
- * de marca vía painterResource), sin que un único tipo fijo lo impida.
- */
 private data class PaginaGuia(
     val titulo: String,
     val descripcion: String,
