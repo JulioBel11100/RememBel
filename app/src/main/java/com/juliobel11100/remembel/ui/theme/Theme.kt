@@ -1,4 +1,4 @@
-package com.example.remembel.ui.theme
+package com.juliobel11100.remembel.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -6,8 +6,8 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import com.example.remembel.EstiloVisual
-import com.example.remembel.TemaApp
+import com.juliobel11100.remembel.EstiloVisual
+import com.juliobel11100.remembel.TemaApp
 
 private fun esquemaColores(estilo: EstiloVisual, esOscuro: Boolean) = when {
     estilo == EstiloVisual.ESENCIAL && !esOscuro -> lightColorScheme(

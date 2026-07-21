@@ -1,10 +1,10 @@
-package com.example.remembel.ui.theme
+package com.juliobel11100.remembel.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import com.example.remembel.EstiloVisual
+import com.juliobel11100.remembel.EstiloVisual
 
 fun tipografiaPara(estilo: EstiloVisual): Typography {
     val escala = if (estilo == EstiloVisual.ESENCIAL) 1.15f else 0.9f

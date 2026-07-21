@@ -1,4 +1,4 @@
-package com.example.remembel
+package com.juliobel11100.remembel
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -13,8 +13,8 @@ import android.content.Intent
 class GrabacionReceiver : BroadcastReceiver() {
 
     companion object {
-        const val ACCION_INICIAR = "com.example.remembel.ACCION_INICIAR"
-        const val ACCION_DETENER = "com.example.remembel.ACCION_DETENER"
+        const val ACCION_INICIAR = "com.juliobel11100.remembel.ACCION_INICIAR"
+        const val ACCION_DETENER = "com.juliobel11100.remembel.ACCION_DETENER"
     }
 
     override fun onReceive(context: Context, intent: Intent) {

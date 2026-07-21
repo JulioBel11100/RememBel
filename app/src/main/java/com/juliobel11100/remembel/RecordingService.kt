@@ -1,4 +1,4 @@
-package com.example.remembel
+package com.juliobel11100.remembel
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -21,9 +21,9 @@ import java.util.Locale
 class RecordingService : Service() {
 
     companion object {
-        const val ACCION_HORARIO_INICIAR = "com.example.remembel.SERVICIO_HORARIO_INICIAR"
-        const val ACCION_HORARIO_DETENER = "com.example.remembel.SERVICIO_HORARIO_DETENER"
-        const val ACCION_HORARIO_STANDBY = "com.example.remembel.SERVICIO_HORARIO_STANDBY"
+        const val ACCION_HORARIO_INICIAR = "com.juliobel11100.remembel.SERVICIO_HORARIO_INICIAR"
+        const val ACCION_HORARIO_DETENER = "com.juliobel11100.remembel.SERVICIO_HORARIO_DETENER"
+        const val ACCION_HORARIO_STANDBY = "com.juliobel11100.remembel.SERVICIO_HORARIO_STANDBY"
 
         private const val BITRATE_FIJO = 128_000
         private val _estaGrabando = MutableStateFlow(false)

@@ -1,4 +1,4 @@
-package com.example.remembel.ui.theme
+package com.juliobel11100.remembel.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

@@ -1,4 +1,4 @@
-package com.example.remembel
+package com.juliobel11100.remembel
 
 import android.content.Context
 

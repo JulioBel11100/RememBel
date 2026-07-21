@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.remembel"
+    namespace = "com.juliobel11100.remembel"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -12,7 +12,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.remembel"
+        applicationId = "com.juliobel11100.remembel"
         minSdk = 26
         targetSdk = 36
         versionCode = 2

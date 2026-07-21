@@ -1,4 +1,4 @@
-package com.example.remembel
+package com.juliobel11100.remembel
 
 import java.io.File
 import androidx.compose.material3.AlertDialog
@@ -94,7 +94,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import com.example.remembel.ui.theme.RememBelTheme
+import com.juliobel11100.remembel.ui.theme.RememBelTheme
 import java.util.Calendar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
