@@ -9,7 +9,6 @@ import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.Slider
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
@@ -22,15 +21,14 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import android.Manifest
@@ -69,6 +67,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -84,7 +83,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -93,6 +91,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.juliobel11100.remembel.ui.theme.RememBelTheme
 import java.util.Calendar
@@ -102,7 +101,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private enum class Pantalla {
-    PRINCIPAL, BIBLIOTECA
+    PRINCIPAL, BIBLIOTECA, RECUPERAR
 }
 
 class MainActivity : ComponentActivity() {
@@ -115,9 +114,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         window.setFlags(
-           android.view.WindowManager.LayoutParams.FLAG_SECURE,
-           android.view.WindowManager.LayoutParams.FLAG_SECURE)
-
+            android.view.WindowManager.LayoutParams.FLAG_SECURE,
+            android.view.WindowManager.LayoutParams.FLAG_SECURE
+        )
 
         enableEdgeToEdge()
         pedirPermisosNecesarios()
@@ -126,6 +125,7 @@ class MainActivity : ComponentActivity() {
             RememBelTheme(estilo = EstiloVisual.VIVO, tema = TemaApp.OSCURO) {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     var pantallaActual by rememberSaveable { mutableStateOf(Pantalla.PRINCIPAL) }
+                    var pistaARecuperar by remember { mutableStateOf<PistaDisponible?>(null) }
 
                     AnimatedContent(
                         targetState = pantallaActual,
@@ -145,11 +145,22 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier.padding(innerPadding),
                                 onVolver = { pantallaActual = Pantalla.PRINCIPAL }
                             )
+                            Pantalla.RECUPERAR -> PantallaRecuperar(
+                                modifier = Modifier.padding(innerPadding),
+                                onVolver = { pantallaActual = Pantalla.PRINCIPAL },
+                                onSeleccionarPista = { pista ->
+                                    pistaARecuperar = pista
+                                    pantallaActual = Pantalla.PRINCIPAL
+                                }
+                            )
                             Pantalla.PRINCIPAL -> PantallaPrincipal(
                                 modifier = Modifier.padding(innerPadding),
                                 onIniciar = { iniciarServicio() },
                                 onDetener = { detenerServicio() },
-                                onAbrirBiblioteca = { pantallaActual = Pantalla.BIBLIOTECA }
+                                onAbrirBiblioteca = { pantallaActual = Pantalla.BIBLIOTECA },
+                                onAbrirRecuperar = { pantallaActual = Pantalla.RECUPERAR },
+                                pistaARecuperar = pistaARecuperar,
+                                onPistaConsumida = { pistaARecuperar = null }
                             )
                         }
                     }
@@ -172,10 +183,15 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun iniciarServicio() {
+        // Por si quedaba pendiente una alarma de "duración limitada" de una sesión
+        // anterior que se paró a mano: si no se cancela, cortaría esta grabación
+        // nueva sin motivo cuando llegara su hora.
+        AlarmScheduler.cancelarDuracionLimitada(this)
         startForegroundService(Intent(this, RecordingService::class.java))
     }
 
     private fun detenerServicio() {
+        AlarmScheduler.cancelarDuracionLimitada(this)
         stopService(Intent(this, RecordingService::class.java))
     }
 }
@@ -199,10 +215,12 @@ fun PantallaPrincipal(
     modifier: Modifier = Modifier,
     onIniciar: () -> Unit,
     onDetener: () -> Unit,
-    onAbrirBiblioteca: () -> Unit
+    onAbrirBiblioteca: () -> Unit,
+    onAbrirRecuperar: () -> Unit,
+    pistaARecuperar: PistaDisponible? = null,
+    onPistaConsumida: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
 
     var mostrarGuia by remember { mutableStateOf(!ConfiguracionGrabacion.leerGuiaVista(context)) }
 
@@ -214,25 +232,25 @@ fun PantallaPrincipal(
         return
     }
 
-    var diaSeleccionado by remember { mutableStateOf<Calendar?>(null) }
-    var horaInicio by remember { mutableStateOf<Pair<Int, Int>?>(null) }
-    var horaFin by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var mensaje by remember { mutableStateOf("") }
     var mensajeModo by remember { mutableStateOf("") }
 
     var reproductor by remember { mutableStateOf<MediaPlayer?>(null) }
     var archivoTemporalRecuperado by remember { mutableStateOf<File?>(null) }
+    var tramoActual by remember { mutableStateOf<TramoRecuperado?>(null) }
     var mostrarDialogoGuardar by remember { mutableStateOf(false) }
     var estaSonando by remember { mutableStateOf(false) }
     var posicionMs by remember { mutableStateOf(0) }
     var duracionMs by remember { mutableStateOf(0) }
     var velocidad by remember { mutableStateOf(1f) }
+    var formaDeOnda by remember { mutableStateOf<List<Float>>(emptyList()) }
     val estaGrabando by RecordingService.estaGrabando.collectAsState()
 
     var modoElegido by remember { mutableStateOf(ConfiguracionGrabacion.leerModo(context)) }
     var horaInicioMin by remember { mutableIntStateOf(ConfiguracionGrabacion.leerHoraInicioMinutos(context)) }
     var horaFinMin by remember { mutableIntStateOf(ConfiguracionGrabacion.leerHoraFinMinutos(context)) }
     var duracionMin by remember { mutableIntStateOf(ConfiguracionGrabacion.leerDuracionLimitadaMinutos(context)) }
+    var restanteMs by remember { mutableStateOf(0L) }
 
     LaunchedEffect(estaSonando) {
         while (estaSonando) {
@@ -241,8 +259,65 @@ fun PantallaPrincipal(
         }
     }
 
+    LaunchedEffect(estaGrabando) {
+        while (estaGrabando) {
+            val finMs = ConfiguracionGrabacion.leerFinDuracionLimitada(context)
+            restanteMs = (finMs - System.currentTimeMillis()).coerceAtLeast(0L)
+            delay(1000)
+        }
+        restanteMs = 0L
+    }
+
     DisposableEffect(Unit) {
         onDispose { reproductor?.release() }
+    }
+
+    suspend fun recuperarYReproducir(inicioMs: Long, finMs: Long) {
+        mensaje = "Buscando y recomponiendo audio..."
+        val tramos = withContext(Dispatchers.IO) {
+            recuperarIntervalo(context, inicioMs, finMs)
+        }
+
+        if (tramos.isEmpty()) {
+            mensaje = "No se encontró audio para ese intervalo."
+        } else {
+            val primerTramo = tramos.first()
+            tramoActual = primerTramo
+            archivoTemporalRecuperado = primerTramo.archivo
+            reproductor?.release()
+            velocidad = 1f
+            reproductor = MediaPlayer().apply {
+                setDataSource(primerTramo.archivo.absolutePath)
+                setOnCompletionListener { estaSonando = false }
+                prepare()
+                duracionMs = duration
+                posicionMs = 0
+                start()
+                playbackParams = playbackParams.setSpeed(1f)
+            }
+            estaSonando = true
+            mensaje = if (tramos.size == 1) {
+                "Intervalo: ${formatoHoraDesdeMs(primerTramo.inicioMs)} a ${formatoHoraDesdeMs(primerTramo.finMs)}"
+            } else {
+                "Hay ${tramos.size} tramos distintos en ese intervalo (con huecos sin grabar entre ellos). " +
+                    "Reproduciendo el primero; el resto puedes recuperarlos por separado desde \"Pendientes de guardar\"."
+            }
+        }
+    }
+
+    LaunchedEffect(pistaARecuperar) {
+        val pista = pistaARecuperar ?: return@LaunchedEffect
+        recuperarYReproducir(pista.inicioMs, pista.finMs)
+        onPistaConsumida()
+    }
+
+    LaunchedEffect(archivoTemporalRecuperado) {
+        val archivo = archivoTemporalRecuperado
+        formaDeOnda = if (archivo != null) {
+            withContext(Dispatchers.IO) { extraerFormaDeOnda(archivo) }
+        } else {
+            emptyList()
+        }
     }
 
     fun cambiarVelocidad(nuevaVelocidad: Float) {
@@ -284,17 +359,7 @@ fun PantallaPrincipal(
             IconButton(onClick = { mostrarGuia = true }) {
                 Icon(Icons.Filled.Info, contentDescription = "Cómo funciona RememBel")
             }
-            IconButton(onClick = onAbrirBiblioteca) {
-                Icon(Icons.Filled.Archive, contentDescription = "Biblioteca")
-            }
         }
-        Text(
-            "Tu memoria de audio",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center
-        )
 
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -316,6 +381,14 @@ fun PantallaPrincipal(
                     Text(
                         if (estaGrabando) "Recordando..." else "En pausa",
                         style = MaterialTheme.typography.titleMedium
+                    )
+                }
+
+                if (estaGrabando && restanteMs > 0) {
+                    Text(
+                        "Quedan ${formatearRestante(restanteMs)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
@@ -415,13 +488,37 @@ fun PantallaPrincipal(
                 }
 
                 if (modoElegido == ModoGrabacion.DURACION_LIMITADA) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                         Text("Duración: ${formatearMinutos(duracionMin)}")
-                        Slider(
-                            value = duracionMin.toFloat(),
-                            onValueChange = { duracionMin = it.toInt() },
-                            valueRange = 15f..480f
-                        )
+                        Spacer(Modifier.height(4.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                        ) {
+                            SelectorNumerico(
+                                etiqueta = "Horas",
+                                valor = duracionMin / 60,
+                                sufijo = "h",
+                                puedeDecrementar = duracionMin - 60 >= 1,
+                                puedeIncrementar = duracionMin + 60 <= 480,
+                                onDecrementar = { duracionMin -= 60 },
+                                onIncrementar = { duracionMin += 60 }
+                            )
+                            SelectorNumerico(
+                                etiqueta = "Minutos",
+                                valor = duracionMin % 60,
+                                sufijo = "min",
+                                puedeDecrementar = duracionMin - 1 >= 1,
+                                puedeIncrementar = duracionMin + 1 <= 480,
+                                onDecrementar = { duracionMin -= 1 },
+                                onIncrementar = { duracionMin += 1 }
+                            )
+                        }
                     }
 
                     val interactionGrabarTiempo = remember { MutableInteractionSource() }
@@ -444,111 +541,49 @@ fun PantallaPrincipal(
             }
         }
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+            val interactionRecuperar = remember { MutableInteractionSource() }
+            Button(
+                onClick = onAbrirRecuperar,
+                interactionSource = interactionRecuperar,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                ),
+                modifier = Modifier.weight(1f).escalaAlPulsar(interactionRecuperar)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(Icons.Filled.History, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Text("Recuperar audio", style = MaterialTheme.typography.titleMedium)
-                }
-
-                val interactionDia = remember { MutableInteractionSource() }
-                OutlinedButton(
-                    onClick = { mostrarSelectorFecha(context) { cal -> diaSeleccionado = cal } },
-                    interactionSource = interactionDia,
-                    modifier = Modifier.fillMaxWidth().escalaAlPulsar(interactionDia)
-                ) {
-                    Icon(Icons.Filled.CalendarToday, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(if (diaSeleccionado != null) formatearDia(diaSeleccionado!!) else "Elegir día")
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = { mostrarSelectorHora(context) { h, m -> horaInicio = Pair(h, m) } },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Filled.Schedule, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(if (horaInicio != null) "${dosDigitos(horaInicio!!.first)}:${dosDigitos(horaInicio!!.second)}" else "Desde")
-                    }
-
-                    OutlinedButton(
-                        onClick = { mostrarSelectorHora(context) { h, m -> horaFin = Pair(h, m) } },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Filled.Schedule, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(if (horaFin != null) "${dosDigitos(horaFin!!.first)}:${dosDigitos(horaFin!!.second)}" else "Hasta")
-                    }
-                }
-
-                val interactionRecuperar = remember { MutableInteractionSource() }
-                Button(
-                    onClick = {
-                        if (diaSeleccionado == null || horaInicio == null || horaFin == null) {
-                            mensaje = "Elige día, hora de inicio y hora de fin."
-                            return@Button
-                        }
-                        val inicioMs = combinarDiaYHora(diaSeleccionado!!, horaInicio!!)
-                        var finMs = combinarDiaYHora(diaSeleccionado!!, horaFin!!)
-
-                        if (finMs <= inicioMs) {
-                            finMs += 24 * 60 * 60 * 1000L
-                        }
-
-                        mensaje = "Buscando y recomponiendo audio..."
-
-                        scope.launch {
-                            val resultado = withContext(Dispatchers.IO) {
-                                recuperarIntervalo(context, inicioMs, finMs)
-                            }
-
-                            if (resultado == null) {
-                                mensaje = "No se encontró audio para ese intervalo."
-                            } else {
-                                mensaje = "Intervalo: ${dosDigitos(horaInicio!!.first)}:${dosDigitos(horaInicio!!.second)} " +
-                                        "a ${dosDigitos(horaFin!!.first)}:${dosDigitos(horaFin!!.second)}"
-                                archivoTemporalRecuperado = resultado
-                                reproductor?.release()
-                                velocidad = 1f
-                                reproductor = MediaPlayer().apply {
-                                    setDataSource(resultado.absolutePath)
-                                    setOnCompletionListener { estaSonando = false }
-                                    prepare()
-                                    duracionMs = duration
-                                    posicionMs = 0
-                                    start()
-                                    playbackParams = playbackParams.setSpeed(1f)
-                                }
-                                estaSonando = true
-                            }
-                        }
-                    },
-                    interactionSource = interactionRecuperar,
-                    modifier = Modifier.fillMaxWidth().escalaAlPulsar(interactionRecuperar)
-                ) {
-                    Icon(Icons.Filled.Search, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Recuperar y reproducir")
-                }
-                if (mensaje.isNotEmpty()) {
-                    Text(
-                        mensaje,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Icon(Icons.Filled.History, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Recuperar audio", maxLines = 1)
             }
+
+            val interactionBiblioteca = remember { MutableInteractionSource() }
+            Button(
+                onClick = onAbrirBiblioteca,
+                interactionSource = interactionBiblioteca,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                ),
+                modifier = Modifier.weight(1f).escalaAlPulsar(interactionBiblioteca)
+            ) {
+                Icon(Icons.Filled.Archive, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Biblioteca", maxLines = 1)
+            }
+        }
+
+        if (mensaje.isNotEmpty()) {
+            Text(
+                mensaje,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
 
         if (reproductor != null && duracionMs > 0) {
@@ -565,13 +600,15 @@ fun PantallaPrincipal(
                         style = MaterialTheme.typography.bodyMedium
                     )
 
-                    Slider(
-                        value = posicionMs.toFloat(),
-                        onValueChange = { nuevaPosicion ->
-                            reproductor?.seekTo(nuevaPosicion.toInt())
-                            posicionMs = nuevaPosicion.toInt()
+                    FormaDeOndaSlider(
+                        barras = formaDeOnda,
+                        progreso = if (duracionMs > 0) posicionMs / duracionMs.toFloat() else 0f,
+                        onSeek = { fraccion ->
+                            val nuevaPosicion = (fraccion * duracionMs).toInt()
+                            reproductor?.seekTo(nuevaPosicion)
+                            posicionMs = nuevaPosicion
                         },
-                        valueRange = 0f..duracionMs.toFloat()
+                        modifier = Modifier.padding(vertical = 4.dp)
                     )
 
                     Row(
@@ -651,29 +688,43 @@ fun PantallaPrincipal(
     }
 
     if (mostrarDialogoGuardar) {
-        var nombreElegido by remember { mutableStateOf("") }
+        val diaDelTramo = remember(tramoActual) {
+            tramoActual?.let { Calendar.getInstance().apply { timeInMillis = it.inicioMs } }
+                ?: Calendar.getInstance()
+        }
+        var nombreElegido by remember {
+            mutableStateOf(tramoActual?.let { nombrePorHoraMs(it.inicioMs, it.finMs) } ?: "")
+        }
         AlertDialog(
             onDismissRequest = { mostrarDialogoGuardar = false },
             title = { Text("Guardar audio") },
             text = {
-                OutlinedTextField(
-                    value = nombreElegido,
-                    onValueChange = { nombreElegido = it },
-                    label = { Text("Nombre") },
-                    singleLine = true
-                )
+                Column {
+                    Text(
+                        "Se guardará en la carpeta del día ${formatearDia(diaDelTramo)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = nombreElegido,
+                        onValueChange = { nombreElegido = it },
+                        label = { Text("Nombre") },
+                        singleLine = true
+                    )
+                }
             },
             confirmButton = {
                 TextButton(onClick = {
                     val origen = archivoTemporalRecuperado
                     if (origen != null && nombreElegido.isNotBlank()) {
-                        val carpetaBiblioteca = obtenerCarpetaBiblioteca(context)
-                        val destino = File(carpetaBiblioteca, "${nombreElegido.trim()}.m4a")
+                        val carpetaDelDia = obtenerCarpetaDia(context, diaDelTramo)
+                        val destino = File(carpetaDelDia, "${nombreElegido.trim()}.m4a")
                         if (destino.exists()) {
-                            mensaje = "Ya existe un audio llamado \"${nombreElegido.trim()}\". Elige otro nombre."
+                            mensaje = "Ya existe un audio llamado \"${nombreElegido.trim()}\" ese día. Elige otro nombre."
                         } else {
                             origen.copyTo(destino, overwrite = false)
-                            mensaje = "Guardado en biblioteca como \"${nombreElegido.trim()}\""
+                            mensaje = "Guardado en \"${carpetaDelDia.name}/${nombreElegido.trim()}\""
                             mostrarDialogoGuardar = false
                         }
                     } else {
@@ -737,6 +788,51 @@ private fun PuntoDeGrabacion(estaGrabando: Boolean) {
     }
 }
 
+@Composable
+private fun SelectorNumerico(
+    etiqueta: String,
+    valor: Int,
+    sufijo: String,
+    puedeDecrementar: Boolean,
+    puedeIncrementar: Boolean,
+    onDecrementar: () -> Unit,
+    onIncrementar: () -> Unit
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            etiqueta,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(
+                onClick = onDecrementar,
+                enabled = puedeDecrementar,
+                modifier = Modifier
+                    .size(40.dp)
+                    .semantics { contentDescription = "Menos $etiqueta" }
+            ) {
+                Text("−", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+            Text(
+                "${dosDigitos(valor)} $sufijo",
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.width(54.dp)
+            )
+            IconButton(
+                onClick = onIncrementar,
+                enabled = puedeIncrementar,
+                modifier = Modifier
+                    .size(40.dp)
+                    .semantics { contentDescription = "Más $etiqueta" }
+            ) {
+                Text("+", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
 private fun nombreLegible(modo: ModoGrabacion): String = when (modo) {
     ModoGrabacion.CONSTANTE -> "Constante"
     ModoGrabacion.HORARIO_FIJO -> "Horario fijo"
@@ -749,6 +845,13 @@ private fun formatearMinutos(totalMin: Int): String {
     return "%02d:%02d".format(h, m)
 }
 
+private fun formatearRestante(ms: Long): String {
+    val totalMinutos = (ms / 60_000L).toInt()
+    val horas = totalMinutos / 60
+    val minutos = totalMinutos % 60
+    return "$horas:${dosDigitos(minutos)}"
+}
+
 private fun formatearTiempo(ms: Int): String {
     val totalSegundos = ms / 1000
     val minutos = totalSegundos / 60
@@ -756,7 +859,7 @@ private fun formatearTiempo(ms: Int): String {
     return "${dosDigitos(minutos)}:${dosDigitos(segundos)}"
 }
 
-private fun mostrarSelectorFecha(
+internal fun mostrarSelectorFecha(
     context: android.content.Context,
     alElegir: (Calendar) -> Unit
 ) {
@@ -788,7 +891,7 @@ internal fun mostrarSelectorHora(
     ).show()
 }
 
-private fun combinarDiaYHora(dia: Calendar, hora: Pair<Int, Int>): Long {
+internal fun combinarDiaYHora(dia: Calendar, hora: Pair<Int, Int>): Long {
     val cal = Calendar.getInstance()
     cal.set(Calendar.YEAR, dia.get(Calendar.YEAR))
     cal.set(Calendar.MONTH, dia.get(Calendar.MONTH))
@@ -800,9 +903,17 @@ private fun combinarDiaYHora(dia: Calendar, hora: Pair<Int, Int>): Long {
     return cal.timeInMillis
 }
 
-private fun formatearDia(cal: Calendar): String {
+fun formatearDia(cal: Calendar): String {
     val formato = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault())
     return formato.format(cal.time)
 }
 
-private fun dosDigitos(n: Int): String = if (n < 10) "0$n" else "$n"
+fun dosDigitos(n: Int): String = if (n < 10) "0$n" else "$n"
+
+private fun formatoHoraDesdeMs(ms: Long): String {
+    val cal = Calendar.getInstance().apply { timeInMillis = ms }
+    return "${dosDigitos(cal.get(Calendar.HOUR_OF_DAY))}-${dosDigitos(cal.get(Calendar.MINUTE))}"
+}
+
+private fun nombrePorHoraMs(inicioMs: Long, finMs: Long): String =
+    "${formatoHoraDesdeMs(inicioMs)} a ${formatoHoraDesdeMs(finMs)}"

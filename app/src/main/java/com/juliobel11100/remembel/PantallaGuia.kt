@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
@@ -48,7 +49,7 @@ private data class PaginaGuia(
 private fun paginasGuia(): List<PaginaGuia> = listOf(
     PaginaGuia(
         titulo = "Bienvenido a RememBel",
-        descripcion = "Tu memoria de audio: graba en segundo plano y recupera exactamente lo que pasó en un momento concreto.",
+        descripcion = "Tu memoria de audio: graba en segundo plano, recupera exactamente lo que pasó en un momento concreto, guárdalo en tu biblioteca y compártelo si quieres. Todo se queda en tu móvil.",
         icono = {
             Icon(
                 painter = painterResource(id = R.drawable.ic_logo_guia),
@@ -74,14 +75,14 @@ private fun paginasGuia(): List<PaginaGuia> = listOf(
     ),
     PaginaGuia(
         titulo = "Recupera un momento",
-        descripcion = "Elige el día y las horas de inicio y fin. RememBel busca y recompone el audio exacto de ese intervalo.",
+        descripcion = "Toca \"Recuperar audio\" en la pantalla principal: elige un día y una hora de inicio y fin para recomponer justo ese tramo, o elige directamente una de las sesiones que ya tienes grabadas y listas para rescatar antes de que se borren solas a los 7 días.",
         icono = {
             Icon(Icons.Filled.History, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
         }
     ),
     PaginaGuia(
-        titulo = "Guarda en tu biblioteca",
-        descripcion = "Ponle el nombre que quieras al audio recuperado y organízalo en carpetas, para siempre.",
+        titulo = "Guarda y comparte",
+        descripcion = "Ponle el nombre que quieras al audio recuperado, organízalo en carpetas, escúchalo con su forma de onda y compártelo con quien quieras. Se queda solo en tu móvil hasta que tú decidas.",
         icono = {
             Icon(Icons.Filled.Archive, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
         }
@@ -112,6 +113,7 @@ fun PantallaGuia(onCerrar: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .navigationBarsPadding()
             .padding(24.dp)
     ) {
         Row(

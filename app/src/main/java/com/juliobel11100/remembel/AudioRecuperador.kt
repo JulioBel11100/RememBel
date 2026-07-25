@@ -23,26 +23,88 @@ private val FORMATO_NOMBRE = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.getDefa
  */
 private data class TrozoReal(val archivo: File, val inicioMs: Long, val finMs: Long)
 
+/** Un tramo de audio ya recompuesto, con su rango de tiempo real (puede no coincidir
+ *  exactamente con lo pedido si se ha recortado a lo que hay realmente grabado). */
+data class TramoRecuperado(val archivo: File, val inicioMs: Long, val finMs: Long)
+
+/** Una pista de grabación en bruto que existe ahora mismo en disco (sin guardar
+ *  todavía en la biblioteca), con su rango de tiempo real. */
+data class PistaDisponible(val inicioMs: Long, val finMs: Long)
+
+/**
+ * Lista, sin filtrar por ningún intervalo, todas las pistas (tramos continuos de
+ * grabación) que existen ahora mismo en la carpeta de grabaciones en bruto. Sirve
+ * para mostrarle al usuario qué puede todavía recuperar y guardar antes de que el
+ * borrado automático (7 días) se lo lleve.
+ */
+fun listarPistasDisponibles(context: Context): List<PistaDisponible> {
+    val carpeta = File(context.getExternalFilesDir(null), "grabaciones")
+    if (!carpeta.exists()) return emptyList()
+
+    val trozos = leerTrozosReales(carpeta) { true }
+    return agruparPorContinuidad(trozos).map { pista ->
+        PistaDisponible(pista.first().inicioMs, pista.last().finMs)
+    }.sortedByDescending { it.inicioMs }
+}
+
+/**
+ * Recupera el intervalo pedido. Si dentro de ese intervalo hay huecos sin grabar
+ * (porque la grabación se paró y se volvió a arrancar más tarde), no se rellenan
+ * ni se pegan como si fueran continuos: se devuelve un [TramoRecuperado] por cada
+ * tramo realmente continuo de grabación, para no mezclar audio de momentos
+ * distintos en un mismo archivo.
+ */
 fun recuperarIntervalo(
     context: Context,
     inicioMs: Long,
     finMs: Long
-): File? {
+): List<TramoRecuperado> {
 
     val carpeta = File(context.getExternalFilesDir(null), "grabaciones")
-    if (!carpeta.exists()) return null
+    if (!carpeta.exists()) return emptyList()
 
-    // -------- PASO 1 (nuevo): miramos qué existe de verdad --------
     val trozosQueTocan = buscarTrozosQueTocanRango(carpeta, inicioMs, finMs)
-    if (trozosQueTocan.isEmpty()) return null
+    if (trozosQueTocan.isEmpty()) return emptyList()
 
-    // -------- PASOS 2 y 3: recortar extremos y pegar (igual que antes) --------
-    val archivoSalida = File(context.cacheDir, "recuperado_temporal.m4a")
-    if (archivoSalida.exists()) archivoSalida.delete()
+    val pistas = agruparPorContinuidad(trozosQueTocan)
 
-    unirYRecortar(trozosQueTocan, inicioMs, finMs, archivoSalida)
+    return pistas.mapIndexedNotNull { indice, pista ->
+        val inicioPista = maxOf(inicioMs, pista.first().inicioMs)
+        val finPista = minOf(finMs, pista.last().finMs)
+        if (finPista <= inicioPista) return@mapIndexedNotNull null
 
-    return if (archivoSalida.exists() && archivoSalida.length() > 0) archivoSalida else null
+        val archivoSalida = File(context.cacheDir, "recuperado_temporal_$indice.m4a")
+        if (archivoSalida.exists()) archivoSalida.delete()
+
+        unirYRecortar(pista, inicioPista, finPista, archivoSalida)
+
+        if (archivoSalida.exists() && archivoSalida.length() > 0) {
+            TramoRecuperado(archivoSalida, inicioPista, finPista)
+        } else {
+            null
+        }
+    }
+}
+
+/**
+ * Agrupa los trozos ordenados en pistas: un trozo empieza una pista nueva si hay
+ * un hueco real (sin grabación) entre el final del trozo anterior y su propio
+ * inicio, más allá de un pequeño margen por la latencia normal del corte entre
+ * un MediaRecorder y el siguiente.
+ */
+private fun agruparPorContinuidad(trozos: List<TrozoReal>): List<List<TrozoReal>> {
+    val toleranciaMs = 3_000L
+    val pistas = mutableListOf<MutableList<TrozoReal>>()
+
+    for (trozo in trozos) {
+        val pistaActual = pistas.lastOrNull()
+        if (pistaActual != null && trozo.inicioMs - pistaActual.last().finMs <= toleranciaMs) {
+            pistaActual.add(trozo)
+        } else {
+            pistas.add(mutableListOf(trozo))
+        }
+    }
+    return pistas
 }
 
 /**
@@ -75,27 +137,51 @@ private fun leerDuracionReal(archivo: File): Long {
 }
 
 /**
- * PASO 1 en detalle: lista los archivos reales de la carpeta, calcula su rango
- * real [inicio, fin) usando su nombre + su duración de verdad, y devuelve
- * solo los que se solapan con el rango pedido, ordenados cronológicamente.
+ * Lista los archivos reales de la carpeta y calcula su rango real [inicio, fin)
+ * usando su nombre + su duración de verdad, ordenados cronológicamente.
+ *
+ * [filtroCandidato] se aplica ANTES de abrir cada archivo (usando solo el inicio
+ * que ya sabemos por su nombre, sin coste de E/S) para no pagar el precio de un
+ * MediaExtractor por cada .m4a en disco cuando solo nos interesa un puñado de
+ * ellos — con retención de 7 días y trozos de 15 min puede haber cientos de
+ * archivos, y abrirlos todos para descartar la mayoría es el cuello de botella
+ * real de una recuperación.
+ */
+private fun leerTrozosReales(
+    carpeta: File,
+    filtroCandidato: (inicioTrozo: Long) -> Boolean
+): List<TrozoReal> {
+    val archivos = carpeta.listFiles { f -> f.name.endsWith(".m4a") } ?: return emptyList()
+
+    return archivos.mapNotNull { archivo ->
+        val inicioTrozo = leerInicioDesdeNombre(archivo) ?: return@mapNotNull null
+        if (!filtroCandidato(inicioTrozo)) return@mapNotNull null
+        val duracion = leerDuracionReal(archivo)
+        if (duracion <= 0L) return@mapNotNull null
+        TrozoReal(archivo, inicioTrozo, inicioTrozo + duracion)
+    }.sortedBy { it.inicioMs }
+}
+
+/**
+ * Filtra primero por nombre (barato) y luego, solo para los candidatos reales,
+ * comprueba el solape exacto con el rango pedido usando la duración real.
  */
 private fun buscarTrozosQueTocanRango(
     carpeta: File,
     inicioMs: Long,
     finMs: Long
 ): List<TrozoReal> {
-    val archivos = carpeta.listFiles { f -> f.name.endsWith(".m4a") } ?: return emptyList()
+    // Margen generoso por encima de la duración normal de un trozo (15 min):
+    // un trozo que empieza justo antes de inicioMs puede seguir solapando el
+    // rango pedido gracias a su propia duración.
+    val margenMs = 60 * 60 * 1000L
 
-    return archivos.mapNotNull { archivo ->
-        val inicioTrozo = leerInicioDesdeNombre(archivo) ?: return@mapNotNull null
-        val duracion = leerDuracionReal(archivo)
-        if (duracion <= 0L) return@mapNotNull null
-        val finTrozo = inicioTrozo + duracion
-        TrozoReal(archivo, inicioTrozo, finTrozo)
+    return leerTrozosReales(carpeta) { inicioTrozo ->
+        inicioTrozo < finMs && inicioTrozo > inicioMs - margenMs
     }.filter { trozo ->
-        // ¿Se solapa este trozo con el rango que pide el usuario?
+        // Solape exacto, ya con la duración real de cada candidato.
         trozo.inicioMs < finMs && trozo.finMs > inicioMs
-    }.sortedBy { it.inicioMs }
+    }
 }
 
 /**

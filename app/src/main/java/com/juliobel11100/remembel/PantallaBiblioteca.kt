@@ -2,6 +2,7 @@ package com.juliobel11100.remembel
 
 
 import android.content.Context
+import android.content.Intent
 import android.media.MediaPlayer
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,6 +28,7 @@ import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -38,7 +41,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -54,8 +56,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 @Composable
 fun PantallaBiblioteca(
@@ -79,6 +86,7 @@ fun PantallaBiblioteca(
     var posicionMs by remember { mutableStateOf(0) }
     var duracionMs by remember { mutableStateOf(0) }
     var velocidad by remember { mutableStateOf(1f) }
+    var formaDeOnda by remember { mutableStateOf<List<Float>>(emptyList()) }
 
     LaunchedEffect(estaSonando) {
         while (estaSonando) {
@@ -89,6 +97,15 @@ fun PantallaBiblioteca(
 
     DisposableEffect(Unit) {
         onDispose { reproductor?.release() }
+    }
+
+    LaunchedEffect(archivoSonando) {
+        val archivo = archivoSonando
+        formaDeOnda = if (archivo != null) {
+            withContext(Dispatchers.IO) { extraerFormaDeOnda(archivo) }
+        } else {
+            emptyList()
+        }
     }
 
     // Se recalcula solo cuando cambia la carpeta o pedimos refresco manual (tras crear/borrar/renombrar)
@@ -146,6 +163,26 @@ fun PantallaBiblioteca(
                 Icon(Icons.Filled.CreateNewFolder, contentDescription = "Nueva carpeta")
             }
         }
+        if (carpetaActual == carpetaBase) {
+            Row(
+                verticalAlignment = Alignment.Top,
+                modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+            ) {
+                Icon(
+                    Icons.Filled.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "Estos audios se guardan solo en este dispositivo. Si desinstalas RememBel, " +
+                        "se borrarán junto con la app.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
         if (mensaje.isNotEmpty()) {
             Text(
                 mensaje,
@@ -177,6 +214,9 @@ fun PantallaBiblioteca(
                     onBorrar = { elementoParaBorrar = elemento },
                     onMover = if (!elemento.isDirectory) {
                         { elementoParaMover = elemento }
+                    } else null,
+                    onCompartir = if (!elemento.isDirectory) {
+                        { compartirAudio(context, elemento) }
                     } else null
                 )
             }
@@ -189,13 +229,14 @@ fun PantallaBiblioteca(
                     style = MaterialTheme.typography.bodyMedium,
                     maxLines = 1
                 )
-                Slider(
-                    value = posicionMs.toFloat(),
-                    onValueChange = { nuevaPosicion ->
-                        reproductor?.seekTo(nuevaPosicion.toInt())
-                        posicionMs = nuevaPosicion.toInt()
-                    },
-                    valueRange = 0f..duracionMs.toFloat()
+                FormaDeOndaSlider(
+                    barras = formaDeOnda,
+                    progreso = if (duracionMs > 0) posicionMs / duracionMs.toFloat() else 0f,
+                    onSeek = { fraccion ->
+                        val nuevaPosicion = (fraccion * duracionMs).toInt()
+                        reproductor?.seekTo(nuevaPosicion)
+                        posicionMs = nuevaPosicion
+                    }
                 )
 
                 Row(
@@ -407,6 +448,7 @@ private fun ElementoBiblioteca(
     onAbrir: () -> Unit,
     onRenombrar: (() -> Unit)?,
     onMover: (() -> Unit)? = null,
+    onCompartir: (() -> Unit)? = null,
     onBorrar: (() -> Unit)?
 ) {
     var menuAbierto by remember { mutableStateOf(false) }
@@ -443,6 +485,11 @@ private fun ElementoBiblioteca(
                             text = { Text("Mover a...") },
                             onClick = { menuAbierto = false; onMover() })
                     }
+                    if (onCompartir != null) {
+                        DropdownMenuItem(
+                            text = { Text("Compartir") },
+                            onClick = { menuAbierto = false; onCompartir() })
+                    }
                     if (onBorrar != null) {
                         DropdownMenuItem(
                             text = { Text("Borrar") },
@@ -459,6 +506,42 @@ fun obtenerCarpetaBiblioteca(context: Context): File {
     if (!carpeta.exists()) carpeta.mkdirs()
     return carpeta
 }
+
+/**
+ * Comparte un audio de la biblioteca con otras apps (WhatsApp, correo, etc.).
+ * Los archivos viven en almacenamiento privado de la app, así que hace falta
+ * un FileProvider para generar una content:// URI en vez de exponer la ruta
+ * de archivo directamente (Android lo prohíbe desde la API 24).
+ */
+fun compartirAudio(context: Context, archivo: File) {
+    val uri = androidx.core.content.FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        archivo
+    )
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "audio/mp4"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        // El propio panel de compartir necesita permiso para leer el archivo y
+        // generar su vista previa (miniatura/metadatos) ANTES de que el usuario
+        // elija una app destino; sin el ClipData, solo la app finalmente elegida
+        // recibe el permiso, y el panel de compartir falla al previsualizar.
+        clipData = android.content.ClipData.newUri(context.contentResolver, archivo.name, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(Intent.createChooser(intent, "Compartir \"${archivo.name}\""))
+}
+
+private fun carpetaPorDia(base: File, dia: Calendar): File {
+    val formato = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    val carpeta = File(base, formato.format(dia.time))
+    if (!carpeta.exists()) carpeta.mkdirs()
+    return carpeta
+}
+
+/** Subcarpeta de la biblioteca para un día concreto (ej. "2026-07-24"), creándola si hace falta. */
+fun obtenerCarpetaDia(context: Context, dia: Calendar): File =
+    carpetaPorDia(obtenerCarpetaBiblioteca(context), dia)
 
 /**
  * Recorre recursivamente todas las subcarpetas a partir de "base" y devuelve

@@ -17,10 +17,14 @@ de haber pulsado "grabar" en el momento exacto en que pasó lo importante.
 
 ## Funcionalidades
 
-- **Tres modos de grabación**: constante (manual), horario fijo diario, o duración determinada.
+- **Tres modos de grabación**: constante (manual), horario fijo diario, o duración determinada
+  (desde 1 minuto).
 - **Recuperación por intervalo**: elige día y horas, y la app recompone el audio de ese rango exacto.
-- **Biblioteca personal**: guarda los audios recuperados en carpetas, con crear/renombrar/mover/borrar.
-- **Reproductor completo**: velocidad ajustable (0.75x–2x), saltos de ±10 segundos.
+- **Pendientes de guardar**: lista aparte con las sesiones que ya tienes grabadas y aún no has
+  guardado, para rescatarlas antes de que se borren solas.
+- **Biblioteca personal**: guarda los audios recuperados en carpetas, con crear/renombrar/mover/borrar,
+  y compártelos directamente desde ahí.
+- **Reproductor completo**: forma de onda visual, velocidad ajustable (0.75x–2x), saltos de ±10 segundos.
 - **Azulejo de Ajustes Rápidos**: empieza/para la grabación sin abrir la app.
 - **Privacidad por diseño**: todo el audio se queda en el propio dispositivo, sin conexión a
   internet, sin analítica, sin anuncios. Protección contra capturas de pantalla.
@@ -51,7 +55,10 @@ y el reproductor)_
   recorta con `MediaExtractor`/`MediaMuxer` y los une en un único archivo para el intervalo pedido.
 - **`AlarmScheduler`** + **`GrabacionReceiver`**: gestionan las alarmas del sistema para el modo
   de horario fijo y duración limitada, con reprogramación automática diaria.
-- **`PantallaBiblioteca`**: gestor de archivos en Jetpack Compose para los audios guardados.
+- **`PantallaRecuperar`**: recuperación por intervalo a medida y lista de "pendientes de guardar"
+  en una sola pantalla.
+- **`PantallaBiblioteca`**: gestor de archivos en Jetpack Compose para los audios guardados,
+  con reproductor (forma de onda incluida) y opción de compartir.
 - Estado reactivo con `StateFlow` (`RecordingService.estaGrabando`) para mantener la interfaz
   siempre sincronizada con la realidad del servicio, sin importar qué lo dispare (botón, alarma,
   azulejo).
@@ -65,6 +72,9 @@ gestión de batería más agresiva que el Android estándar:
   con los permisos correctos concedidos — es una restricción del fabricante, no de la app.
 - Se recomienda desactivar las restricciones de batería para RememBel en los ajustes del
   fabricante, para que la grabación en segundo plano no se interrumpa.
+- En Android 15 y superior, el sistema no permite reanudar la grabación automáticamente justo
+  al arrancar el móvil: en su lugar, RememBel muestra una notificación que hay que tocar para
+  reanudarla (restricción de Android sobre servicios en primer plano desde `BOOT_COMPLETED`).
 
 ## Privacidad
 

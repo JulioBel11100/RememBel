@@ -68,6 +68,7 @@ object AlarmScheduler {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val minutos = ConfiguracionGrabacion.leerDuracionLimitadaMinutos(context)
         val momento = System.currentTimeMillis() + minutos * 60 * 1000L
+        ConfiguracionGrabacion.guardarFinDuracionLimitada(context, momento)
 
         programarAlarmaExacta(
             alarmManager,
@@ -124,6 +125,16 @@ object AlarmScheduler {
                 CODIGO_FIN
             )
         )
+        cancelarDuracionLimitada(context)
+    }
+
+    /**
+     * Cancela solo la alarma de fin de "duración limitada". Se usa al parar la
+     * grabación manualmente para que una alarma antigua no se quede pendiente
+     * y termine cortando una grabación posterior sin motivo.
+     */
+    fun cancelarDuracionLimitada(context: Context) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         alarmManager.cancel(
             crearPendingIntent(
                 context,
@@ -131,5 +142,6 @@ object AlarmScheduler {
                 CODIGO_FIN_DURACION
             )
         )
+        ConfiguracionGrabacion.guardarFinDuracionLimitada(context, 0L)
     }
 }

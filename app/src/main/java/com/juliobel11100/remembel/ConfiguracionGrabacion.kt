@@ -24,6 +24,7 @@ object ConfiguracionGrabacion {
     private const val CLAVE_HORA_INICIO = "hora_inicio_minutos"
     private const val CLAVE_HORA_FIN = "hora_fin_minutos"
     private const val CLAVE_DURACION_MIN = "duracion_minutos"
+    private const val CLAVE_FIN_DURACION_MS = "fin_duracion_ms"
     private const val CLAVE_ESTABA_ACTIVO = "estaba_activo"
     private const val CLAVE_GUIA_VISTA = "guia_vista"
 
@@ -64,6 +65,17 @@ object ConfiguracionGrabacion {
     fun leerDuracionLimitadaMinutos(context: Context): Int {
         val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
         return prefs.getInt(CLAVE_DURACION_MIN, 60)
+    }
+
+    /** Momento (epoch ms) en el que debe terminar la grabación de duración limitada en curso. */
+    fun guardarFinDuracionLimitada(context: Context, momentoMs: Long) {
+        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
+        prefs.edit().putLong(CLAVE_FIN_DURACION_MS, momentoMs).apply()
+    }
+
+    fun leerFinDuracionLimitada(context: Context): Long {
+        val prefs = context.getSharedPreferences(NOMBRE_PREFS, Context.MODE_PRIVATE)
+        return prefs.getLong(CLAVE_FIN_DURACION_MS, 0L)
     }
 
     fun guardarEstabaActivo(context: Context, activo: Boolean) {
