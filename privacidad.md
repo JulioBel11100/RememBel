@@ -14,7 +14,15 @@ usuario, en una carpeta privada de la aplicación.
 - No envía ningún dato a servidores externos.
 - No comparte información con terceros.
 - No utiliza servicios de analítica ni publicidad.
-- No requiere conexión a internet para funcionar.
+- No requiere conexión a internet para grabar, recuperar audio ni gestionar la biblioteca.
+
+## Comprobación de actualizaciones
+
+La app consulta a Google Play (a través de la librería oficial "Play Core") si existe una
+versión más reciente publicada. Es la única conexión de red de toda la app: no envía datos
+propios, solo recibe de Google la información de versión disponible. Si hay una actualización,
+se avisa dentro de la app y, si el usuario acepta, se descarga en segundo plano y se instala
+al reiniciar la aplicación. Esta comprobación puede desactivarse simplemente ignorando el aviso.
 
 ## Permisos utilizados
 

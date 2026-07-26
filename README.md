@@ -26,8 +26,11 @@ de haber pulsado "grabar" en el momento exacto en que pasó lo importante.
   y compártelos directamente desde ahí.
 - **Reproductor completo**: forma de onda visual, velocidad ajustable (0.75x–2x), saltos de ±10 segundos.
 - **Azulejo de Ajustes Rápidos**: empieza/para la grabación sin abrir la app.
-- **Privacidad por diseño**: todo el audio se queda en el propio dispositivo, sin conexión a
-  internet, sin analítica, sin anuncios. Protección contra capturas de pantalla.
+- **Privacidad por diseño**: todo el audio se queda en el propio dispositivo, sin analítica, sin
+  anuncios. Protección contra capturas de pantalla. La única conexión a internet de la app es
+  para comprobar si hay una versión nueva en Google Play (ver `privacidad.md`).
+- **Aviso de actualizaciones**: si Google Play publica una versión nueva, la app lo detecta y
+  ofrece descargarla en segundo plano; se instala al reiniciar tras aceptar.
 - **Retención automática**: los trozos de grabación en bruto se borran solos pasados 7 días.
 
 ## Capturas de pantalla

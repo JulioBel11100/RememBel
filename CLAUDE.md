@@ -6,8 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 RememBel is a single-module Android app (Kotlin + Jetpack Compose) that records audio continuously
 in 15-minute chunks and lets the user recompose/retrieve any past time interval. See `README.md` for
-the full feature/product description. Everything runs on-device: no network calls, no analytics, no
-backend.
+the full feature/product description. Everything runs on-device: no analytics, no backend. The one
+exception is `ActualizadorApp.kt`, which checks Google Play for a newer version (Play Core "in-app
+updates") — see `privacidad.md`. Every other feature (recording, retrieval, library) has no network
+dependency.
 
 ## Commands
 
@@ -121,6 +123,20 @@ Two separate directories, don't conflate them:
   named by timestamp, auto-deleted after 7 days. Never shown directly to the user.
 - Library folder (see `obtenerCarpetaBiblioteca` in `PantallaBiblioteca.kt`) — user-curated, permanent,
   user-named files/folders the user explicitly saved via "Guardar en biblioteca".
+
+### In-app updates
+
+- **`ActualizadorApp.kt`** — thin wrapper around Google Play Core's "in-app updates" API
+  (`AppUpdateManager`, flexible flow). `MainActivity.onCreate`/`onResume` call
+  `ActualizadorApp.comprobar(this)`; two `StateFlow<Boolean>` (`hayActualizacionDisponible`,
+  `actualizacionLista`) drive dialogs in `PantallaPrincipal` — same collect-a-StateFlow pattern as
+  `RecordingService.estaGrabando`. Accepting the "Actualizar" dialog calls `iniciarDescarga`, which
+  needs an `ActivityResultLauncher<IntentSenderRequest>` (registered in `MainActivity` via
+  `ActivityResultContracts.StartIntentSenderForResult()`) to launch Play's own download-consent UI.
+  Download happens in the background; once `InstallStateUpdatedListener` reports `DOWNLOADED`, the
+  "Actualización lista" dialog calls `completarActualizacion()` (`AppUpdateManager.completeUpdate()`),
+  which restarts the app to apply it. This is the one deliberate exception to "no network calls" —
+  see `privacidad.md`.
 
 ## Build configuration notes
 

@@ -110,6 +110,10 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { }
 
+    private val lanzadorActualizacion = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -120,6 +124,7 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         pedirPermisosNecesarios()
+        ActualizadorApp.comprobar(this)
 
         setContent {
             RememBelTheme(estilo = EstiloVisual.VIVO, tema = TemaApp.OSCURO) {
@@ -160,7 +165,9 @@ class MainActivity : ComponentActivity() {
                                 onAbrirBiblioteca = { pantallaActual = Pantalla.BIBLIOTECA },
                                 onAbrirRecuperar = { pantallaActual = Pantalla.RECUPERAR },
                                 pistaARecuperar = pistaARecuperar,
-                                onPistaConsumida = { pistaARecuperar = null }
+                                onPistaConsumida = { pistaARecuperar = null },
+                                onActualizarAhora = { ActualizadorApp.iniciarDescarga(lanzadorActualizacion) },
+                                onCompletarActualizacion = { ActualizadorApp.completarActualizacion() }
                             )
                         }
                     }
@@ -194,6 +201,13 @@ class MainActivity : ComponentActivity() {
         AlarmScheduler.cancelarDuracionLimitada(this)
         stopService(Intent(this, RecordingService::class.java))
     }
+
+    override fun onResume() {
+        super.onResume()
+        // Si la descarga en segundo plano terminó (o quedó a medias) mientras
+        // la app no estaba en primer plano, esto lo detecta al volver.
+        ActualizadorApp.comprobar(this)
+    }
 }
 
 @Composable
@@ -218,7 +232,9 @@ fun PantallaPrincipal(
     onAbrirBiblioteca: () -> Unit,
     onAbrirRecuperar: () -> Unit,
     pistaARecuperar: PistaDisponible? = null,
-    onPistaConsumida: () -> Unit = {}
+    onPistaConsumida: () -> Unit = {},
+    onActualizarAhora: () -> Unit = {},
+    onCompletarActualizacion: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -245,6 +261,9 @@ fun PantallaPrincipal(
     var velocidad by remember { mutableStateOf(1f) }
     var formaDeOnda by remember { mutableStateOf<List<Float>>(emptyList()) }
     val estaGrabando by RecordingService.estaGrabando.collectAsState()
+    val hayActualizacionDisponible by ActualizadorApp.hayActualizacionDisponible.collectAsState()
+    val actualizacionLista by ActualizadorApp.actualizacionLista.collectAsState()
+    var actualizacionDescartada by remember { mutableStateOf(false) }
 
     var modoElegido by remember { mutableStateOf(ConfiguracionGrabacion.leerModo(context)) }
     var horaInicioMin by remember { mutableIntStateOf(ConfiguracionGrabacion.leerHoraInicioMinutos(context)) }
@@ -734,6 +753,34 @@ fun PantallaPrincipal(
             },
             dismissButton = {
                 TextButton(onClick = { mostrarDialogoGuardar = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
+    if (hayActualizacionDisponible && !actualizacionDescartada) {
+        AlertDialog(
+            onDismissRequest = { actualizacionDescartada = true },
+            title = { Text("Actualización disponible") },
+            text = { Text("Hay una nueva versión de RememBel. Se descargará en segundo plano sin interrumpir la grabación.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    actualizacionDescartada = true
+                    onActualizarAhora()
+                }) { Text("Actualizar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { actualizacionDescartada = true }) { Text("Más tarde") }
+            }
+        )
+    }
+
+    if (actualizacionLista) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("Actualización lista") },
+            text = { Text("La nueva versión ya se descargó. Reinicia la app para aplicarla.") },
+            confirmButton = {
+                TextButton(onClick = onCompletarActualizacion) { Text("Reiniciar ahora") }
             }
         )
     }
