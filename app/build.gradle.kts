@@ -48,6 +48,9 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.play.app.update)
+    // Forzada a una versión reciente: play-services-basement (dependencia transitiva de
+    // app-update) arrastra fragment 1.0.0, que lint rechaza para registerForActivityResult.
+    implementation(libs.androidx.fragment)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
