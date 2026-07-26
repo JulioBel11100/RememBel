@@ -1,5 +1,11 @@
 package com.juliobel11100.remembel
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +40,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -42,11 +49,20 @@ import kotlinx.coroutines.launch
 private data class PaginaGuia(
     val titulo: String,
     val descripcion: String,
-    val icono: @Composable () -> Unit
+    val icono: @Composable () -> Unit,
+    val contenidoExtra: (@Composable () -> Unit)? = null
 )
 
 @Composable
 private fun paginasGuia(): List<PaginaGuia> = listOf(
+    PaginaGuia(
+        titulo = "Imprescindible: quita las restricciones",
+        descripcion = "Esto no es opcional: si tu móvil (sobre todo Xiaomi, Huawei, Oppo o Samsung) tiene su propio ahorro de batería, puede matar RememBel mientras espera para grabar y el horario fijo no funcionará. Concede ahora estos permisos, o la app no grabará cuando toca.",
+        icono = {
+            Icon(Icons.Filled.BatteryAlert, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
+        },
+        contenidoExtra = { BotonesPermisosCriticos() }
+    ),
     PaginaGuia(
         titulo = "Bienvenido a RememBel",
         descripcion = "Tu memoria de audio: graba en segundo plano, recupera exactamente lo que pasó en un momento concreto, guárdalo en tu biblioteca y compártelo si quieres. Todo se queda en tu móvil.",
@@ -93,15 +109,65 @@ private fun paginasGuia(): List<PaginaGuia> = listOf(
         icono = {
             Icon(Icons.Filled.TouchApp, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
         }
-    ),
-    PaginaGuia(
-        titulo = "Un consejo importante",
-        descripcion = "En algunos móviles (sobre todo Xiaomi), desactiva las restricciones de batería para RememBel, para que la grabación no se corte.",
-        icono = {
-            Icon(Icons.Filled.BatteryAlert, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
-        }
     )
 )
+
+@Composable
+private fun BotonesPermisosCriticos() {
+    val context = LocalContext.current
+
+    Spacer(Modifier.height(20.dp))
+
+    Button(
+        onClick = {
+            try {
+                context.startActivity(
+                    Intent(
+                        Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                        Uri.parse("package:${context.packageName}")
+                    )
+                )
+            } catch (e: ActivityNotFoundException) {
+                context.startActivity(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
+                )
+            }
+        },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text("Quitar restricciones de batería")
+    }
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = {
+                try {
+                    context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
+                } catch (e: ActivityNotFoundException) {
+                    context.startActivity(
+                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Permitir alarmas exactas")
+        }
+    }
+
+    Spacer(Modifier.height(8.dp))
+    OutlinedButton(
+        onClick = {
+            context.startActivity(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
+            )
+        },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text("Ajustes de la app (busca \"Inicio automático\")")
+    }
+}
 
 @Composable
 fun PantallaGuia(onCerrar: () -> Unit) {
@@ -157,6 +223,11 @@ fun PantallaGuia(onCerrar: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
+                contenido.contenidoExtra?.let { extra ->
+                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                        extra()
+                    }
+                }
             }
         }
 

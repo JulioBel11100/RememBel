@@ -6,14 +6,27 @@ import android.content.Intent
 
 /**
  * Escucha las alarmas de horario fijo y envía el aviso al RecordingService.
- * No se puede asumir que el servicio siga vivo desde que se activó el
- * horario en Ajustes: el sistema puede haber matado el proceso mientras
- * tanto (gestión de batería, app cerrada desde Recientes...), y en ese caso
- * un startService() a pelo desde este receiver dispara el mismo bloqueo de
- * Android 14+ que motivó [GrabacionTrampolinActivity] para la Tile: no se
- * puede arrancar un servicio foreground de tipo "microphone" desde un
- * contexto sin Activity visible. Por eso se pasa siempre por la Activity
- * trampolín, igual que hacen la Tile y el arranque tras reinicio.
+ *
+ * Ojo: NO se puede pasar por [GrabacionTrampolinActivity] aquí (como hacen la
+ * Tile o la notificación de reanudar tras reinicio). Aquello funciona porque
+ * son gestos directos del usuario (toque en la Tile, toque en la
+ * notificación), que están exentos de las restricciones de "Background
+ * Activity Launch" de Android 10+. Una alarma de AlarmManager disparándose
+ * en segundo plano NO tiene esa excepción: un startActivity() a pelo desde
+ * este receiver se bloquea en silencio y la Activity nunca llega a abrirse,
+ * así que RecordingService jamás recibe la orden (bug real: ver commit
+ * "Arreglar horario fijo cuando el servicio muere en segundo plano", que
+ * introdujo justo este problema).
+ *
+ * Lo que sí está permitido — y es la excepción documentada que hace útiles
+ * a las alarmas exactas — es arrancar un foreground service directamente
+ * desde el receiver cuando el disparo viene de
+ * AlarmManager.setExactAndAllowWhileIdle()/setAlarmClock(), que es como
+ * [AlarmScheduler] las programa. Por eso volvemos a hablar directo con el
+ * servicio, sin intermediarios. (La única vez que un arranque de servicio de
+ * tipo "microphone" SÍ está bloqueado incluso así es al procesar
+ * BOOT_COMPLETED en Android 15+; ese caso lo cubre aparte
+ * [ArranqueAutomaticoReceiver] con una notificación que hay que tocar.)
  */
 class GrabacionReceiver : BroadcastReceiver() {
 
@@ -29,10 +42,8 @@ class GrabacionReceiver : BroadcastReceiver() {
             else -> return
         }
 
-        context.startActivity(
-            Intent(context, GrabacionTrampolinActivity::class.java)
-                .putExtra(GrabacionTrampolinActivity.EXTRA_ACCION_SERVICIO, accionServicio)
-                .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startForegroundService(
+            Intent(context, RecordingService::class.java).setAction(accionServicio)
         )
 
         if (ConfiguracionGrabacion.leerModo(context) == ModoGrabacion.HORARIO_FIJO) {
