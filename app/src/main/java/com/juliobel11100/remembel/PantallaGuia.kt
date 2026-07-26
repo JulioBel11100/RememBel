@@ -143,7 +143,12 @@ private fun BotonesPermisosCriticos() {
         OutlinedButton(
             onClick = {
                 try {
-                    context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
+                    context.startActivity(
+                        Intent(
+                            Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                            Uri.parse("package:${context.packageName}")
+                        )
+                    )
                 } catch (e: ActivityNotFoundException) {
                     context.startActivity(
                         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
