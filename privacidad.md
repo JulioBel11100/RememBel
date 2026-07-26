@@ -1,6 +1,6 @@
 # Política de Privacidad de RememBel
 
-Última actualización: [fecha]
+Última actualización: 26 de julio de 2026
 
 ## Qué datos recoge la app
 
@@ -47,4 +47,5 @@ sobre consentimiento de grabación de conversaciones con terceros.
 ## Contacto
 
 Para cualquier duda sobre esta política de privacidad, puedes contactar a través de:
-[tu email o el repositorio de GitHub]
+- Email: juliobelizon@gmail.com
+- Repositorio: https://github.com/JulioBel11100/RememBel
