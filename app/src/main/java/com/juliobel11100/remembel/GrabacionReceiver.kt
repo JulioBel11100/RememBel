@@ -46,8 +46,17 @@ class GrabacionReceiver : BroadcastReceiver() {
             Intent(context, RecordingService::class.java).setAction(accionServicio)
         )
 
+        // Solo se reprograma la alarma que acaba de disparar, para su ocurrencia del día
+        // siguiente. La otra alarma (la que aún no ha sonado) ya está armada para hoy desde
+        // la vez anterior — volver a registrarla aquí es innecesario y, en la práctica,
+        // reprogramar la misma alarma dos veces en poco tiempo hace que capas como MIUI la
+        // descarten en silencio (comprobado en dispositivo: la de fin dejó de sonar tras ser
+        // re-armada por partida doble en una ventana de prueba corta).
         if (ConfiguracionGrabacion.leerModo(context) == ModoGrabacion.HORARIO_FIJO) {
-            AlarmScheduler.programarHorarioFijo(context)
+            when (intent.action) {
+                ACCION_INICIAR -> AlarmScheduler.programarProximoInicio(context)
+                ACCION_DETENER -> AlarmScheduler.programarProximoFin(context)
+            }
         }
     }
 }

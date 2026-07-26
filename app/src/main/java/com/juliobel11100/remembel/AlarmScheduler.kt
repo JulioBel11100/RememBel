@@ -44,20 +44,38 @@ object AlarmScheduler {
         return objetivo
     }
 
+    /** Arma las dos alarmas (inicio y fin). Solo debe usarse al activar el horario desde
+     * Ajustes o al re-armar tras un reinicio: ninguna de las dos ha disparado todavía, así
+     * que hace falta programar ambas desde cero. */
     fun programarHorarioFijo(context: Context) {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        programarProximoInicio(context)
+        programarProximoFin(context)
+    }
 
+    /** Reprograma solo la alarma de inicio para su próxima ocurrencia (mañana, normalmente).
+     * Se usa cuando el inicio acaba de disparar: la de fin ya está armada para hoy y no hay
+     * que tocarla — re-registrarla sin necesidad puede hacer que el sistema (sobre todo en
+     * capas de fabricante tipo MIUI) la descarte por exceso de reprogramaciones. */
+    fun programarProximoInicio(context: Context) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val minutoInicio = ConfiguracionGrabacion.leerHoraInicioMinutos(context)
         val momentoInicio = proximaOcurrenciaDe(minutoInicio)
-        programarAlarmaExacta(
+        programarAlarmaDespertador(
+            context,
             alarmManager,
             momentoInicio.timeInMillis,
             crearPendingIntent(context, GrabacionReceiver.ACCION_INICIAR, CODIGO_INICIO)
         )
+    }
 
+    /** Reprograma solo la alarma de fin para su próxima ocurrencia (mañana, normalmente).
+     * Simétrico a [programarProximoInicio]. */
+    fun programarProximoFin(context: Context) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val minutoFin = ConfiguracionGrabacion.leerHoraFinMinutos(context)
         val momentoFin = proximaOcurrenciaDe(minutoFin)
-        programarAlarmaExacta(
+        programarAlarmaDespertador(
+            context,
             alarmManager,
             momentoFin.timeInMillis,
             crearPendingIntent(context, GrabacionReceiver.ACCION_DETENER, CODIGO_FIN)
@@ -106,6 +124,53 @@ object AlarmScheduler {
                 momentoMs,
                 pendingIntent
             )
+        }
+    }
+
+    /**
+     * Programa el inicio/fin del horario fijo con setAlarmClock(): a diferencia de
+     * setExactAndAllowWhileIdle(), esta API está exenta de Doze y de las restricciones por
+     * "standby bucket" del sistema (es el mecanismo que usan las apps de despertador), así que
+     * no sufre los retrasos de varios minutos que sí pueden darse con la alarma "exacta"
+     * normal bajo uso intensivo o capas de fabricante agresivas (MIUI). Eso sí, sigue
+     * exigiendo el permiso de "Alarmas y recordatorios" igual que la exacta normal (probado
+     * en dispositivo: sin el permiso, setAlarmClock() lanza SecurityException y tira la app
+     * abajo) — por eso comprueba el permiso igual que [programarAlarmaExacta] y cae también a
+     * una alarma inexacta si no lo tiene. La contrapartida de usarla cuando sí hay permiso es
+     * que Android muestra un pequeño icono de despertador en la barra de estado mientras la
+     * alarma esté pendiente.
+     */
+    private fun programarAlarmaDespertador(
+        context: Context,
+        alarmManager: AlarmManager,
+        momentoMs: Long,
+        pendingIntent: PendingIntent
+    ) {
+        val puedeExactas = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            alarmManager.canScheduleExactAlarms()
+        } else {
+            true
+        }
+
+        if (!puedeExactas) {
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, momentoMs, pendingIntent)
+            return
+        }
+
+        val mostrarIntent = PendingIntent.getActivity(
+            context,
+            0,
+            Intent(context, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        try {
+            alarmManager.setAlarmClock(
+                AlarmManager.AlarmClockInfo(momentoMs, mostrarIntent),
+                pendingIntent
+            )
+        } catch (e: SecurityException) {
+            // El permiso puede haberse revocado entre la comprobación y la llamada.
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, momentoMs, pendingIntent)
         }
     }
 
