@@ -6,6 +6,10 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.media.MediaCodec
+import android.media.MediaExtractor
+import android.media.MediaFormat
+import android.media.MediaMuxer
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.Handler
@@ -15,9 +19,11 @@ import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.File
+import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import java.util.concurrent.Executors
 
 class RecordingService : Service() {
 
@@ -32,8 +38,12 @@ class RecordingService : Service() {
     }
 
     private var grabadorActual: MediaRecorder? = null
+    private var archivoActual: File? = null
     private val handler = Handler(Looper.getMainLooper())
     private val intervaloMs = 15 * 60 * 1000L
+
+    /** Serializa las conversiones .aac -> .m4a en segundo plano, sin bloquear la grabación. */
+    private val ejecutorConversion = Executors.newSingleThreadExecutor()
 
     private val runnableCorte = object : Runnable {
         override fun run() {
@@ -145,27 +155,40 @@ class RecordingService : Service() {
             prepare()
             start()
         }
+        archivoActual = archivo
         _estaGrabando.value = true
     }
 
     private fun detenerGrabacionAcual() {
+        val archivoQueTermina = archivoActual
+        var paroLimpio = false
         grabadorActual?.apply {
             try {
                 stop()
+                paroLimpio = true
             } catch (e: Exception) {
                 // Si el trozo dura muy poco, stop() puede lanzar excepción; lo ignoramos
             }
             release()
         }
         grabadorActual = null
+        archivoActual = null
         _estaGrabando.value = false
         ConfiguracionGrabacion.guardarEstabaActivo(this, false)
+
+        // Solo convertimos si stop() terminó limpio: si lanzó excepción, el .aac puede
+        // estar incompleto y mejor dejarlo tal cual (ADTS sigue siendo legible aunque
+        // esté a medias; un .m4a a medias no lo sería).
+        if (paroLimpio && archivoQueTermina != null) {
+            ejecutorConversion.execute { convertirAM4aYBorrarOriginal(archivoQueTermina) }
+        }
     }
 
     /**
-     * Borra los trozos de audio con más de 7 días de antigüedad (fijo).
-     * Reconoce tanto ".aac" (formato actual) como ".m4a" (trozos que puedan quedar de una
-     * versión anterior de la app, para que no se queden huérfanos ocupando espacio para siempre).
+     * Borra los trozos de audio con más de 7 días de antigüedad (fijo), y de paso convierte
+     * a .m4a cualquier trozo .aac ya cerrado (que no sea el que se está grabando ahora mismo)
+     * que se haya quedado sin convertir — p.ej. trozos grabados con una versión anterior de
+     * la app, antes de que existiera esta conversión automática.
      */
     private fun limpiarGrabacionesAntiguas() {
         val carpeta = File(getExternalFilesDir(null), "grabaciones")
@@ -186,7 +209,65 @@ class RecordingService : Service() {
             val momentoDelTrozo = inicioTrozo ?: archivo.lastModified()
             if (momentoDelTrozo < limiteMs) {
                 archivo.delete()
+            } else if (archivo.name.endsWith(".aac") && archivo != archivoActual) {
+                ejecutorConversion.execute { convertirAM4aYBorrarOriginal(archivo) }
             }
+        }
+    }
+
+    /**
+     * Convierte un trozo .aac (ADTS) ya cerrado a .m4a indexado (MPEG_4). ADTS no tiene
+     * índice de duración: leerla obliga a recorrer el archivo entero, lo que hace lenta la
+     * recuperación de intervalos largos si se dejan muchos trozos en ese formato. Se ejecuta
+     * en segundo plano y el .aac original solo se borra si la conversión termina con éxito,
+     * así nunca hay una ventana sin ninguna copia válida del trozo.
+     */
+    private fun convertirAM4aYBorrarOriginal(origenAac: File) {
+        if (!origenAac.exists()) return
+        val destino = File(origenAac.parentFile, origenAac.nameWithoutExtension + ".m4a")
+        val extractor = MediaExtractor()
+        var muxer: MediaMuxer? = null
+        try {
+            extractor.setDataSource(origenAac.absolutePath)
+            val pista = (0 until extractor.trackCount).firstOrNull { i ->
+                extractor.getTrackFormat(i).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
+            } ?: return
+            extractor.selectTrack(pista)
+
+            muxer = MediaMuxer(destino.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+            val pistaSalida = muxer.addTrack(extractor.getTrackFormat(pista))
+            muxer.start()
+
+            val buffer = ByteBuffer.allocate(256 * 1024)
+            val info = MediaCodec.BufferInfo()
+            while (true) {
+                val tamano = extractor.readSampleData(buffer, 0)
+                if (tamano < 0) break
+                info.offset = 0
+                info.size = tamano
+                info.presentationTimeUs = extractor.sampleTime
+                info.flags = if (extractor.sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0) {
+                    MediaCodec.BUFFER_FLAG_KEY_FRAME
+                } else {
+                    0
+                }
+                muxer.writeSampleData(pistaSalida, buffer, info)
+                extractor.advance()
+            }
+            muxer.stop()
+            muxer.release()
+            muxer = null
+
+            if (destino.exists() && destino.length() > 0) {
+                origenAac.delete()
+            } else {
+                destino.delete()
+            }
+        } catch (e: Exception) {
+            muxer?.release()
+            destino.delete()
+        } finally {
+            extractor.release()
         }
     }
 
@@ -194,6 +275,7 @@ class RecordingService : Service() {
         super.onDestroy()
         handler.removeCallbacks(runnableCorte)
         detenerGrabacionAcual()
+        ejecutorConversion.shutdown()
     }
 
     /**
