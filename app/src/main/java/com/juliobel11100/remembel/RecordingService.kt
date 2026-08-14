@@ -3,6 +3,7 @@ package com.juliobel11100.remembel
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.media.MediaRecorder
@@ -121,7 +122,7 @@ class RecordingService : Service() {
         if (!carpeta.exists()) carpeta.mkdirs()
 
         val formato = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.getDefault())
-        val nombreArchivo = formato.format(Calendar.getInstance().time) + ".m4a"
+        val nombreArchivo = formato.format(Calendar.getInstance().time) + ".aac"
         val archivo = File(carpeta, nombreArchivo)
 
         // Calidad y fuente de audio fijas: siempre la mejor combinación posible.
@@ -130,7 +131,13 @@ class RecordingService : Service() {
 
         grabadorActual = MediaRecorder().apply {
             setAudioSource(fuenteAudio)
-            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            // AAC_ADTS en vez de MPEG_4: un .m4a solo queda legible si stop() llega a
+            // ejecutarse (el índice de duración se escribe al final). Si el sistema mata
+            // el proceso a media grabación de un trozo (frecuente en capas como MIUI/
+            // HyperOS), ese trozo se perdía entero. ADTS no tiene ese índice final: cada
+            // fragmento de audio es autocontenido y legible aunque el archivo quede a
+            // medias, así que como mucho se pierde el último fragmento sin volcar a disco.
+            setOutputFormat(MediaRecorder.OutputFormat.AAC_ADTS)
             setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
             setAudioEncodingBitRate(BITRATE_FIJO)
             setAudioSamplingRate(44100)
@@ -157,10 +164,12 @@ class RecordingService : Service() {
 
     /**
      * Borra los trozos de audio con más de 7 días de antigüedad (fijo).
+     * Reconoce tanto ".aac" (formato actual) como ".m4a" (trozos que puedan quedar de una
+     * versión anterior de la app, para que no se queden huérfanos ocupando espacio para siempre).
      */
     private fun limpiarGrabacionesAntiguas() {
         val carpeta = File(getExternalFilesDir(null), "grabaciones")
-        val archivos = carpeta.listFiles { f -> f.name.endsWith(".m4a") } ?: return
+        val archivos = carpeta.listFiles { f -> f.name.endsWith(".aac") || f.name.endsWith(".m4a") } ?: return
 
         val diasDeRetencion = 7L
         val limiteMs = System.currentTimeMillis() - (diasDeRetencion * 24 * 60 * 60 * 1000L)
@@ -168,7 +177,7 @@ class RecordingService : Service() {
         val formato = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.getDefault())
 
         for (archivo in archivos) {
-            val nombreSinExtension = archivo.name.removeSuffix(".m4a")
+            val nombreSinExtension = archivo.name.removeSuffix(".aac").removeSuffix(".m4a")
             val inicioTrozo = try {
                 formato.parse(nombreSinExtension)?.time
             } catch (e: Exception) {
@@ -187,6 +196,21 @@ class RecordingService : Service() {
         detenerGrabacionAcual()
     }
 
+    /**
+     * Se dispara cuando el sistema retira la tarea de la app (p.ej. el usuario la desliza
+     * fuera de recientes). En Android normal el servicio en primer plano sobrevive a esto y
+     * sigue grabando; en capas como MIUI/HyperOS este gesto suele ir seguido de un cierre
+     * agresivo del proceso. Por eso, si seguíamos grabando, cerramos el trozo actual y
+     * arrancamos uno nuevo ya: así el trozo en curso queda bien finalizado si el proceso
+     * muere justo después, y si no muere (Android normal), la grabación sigue sin más.
+     */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        if (grabadorActual != null) {
+            cortarYEmpezarNuevoTrozo()
+        }
+    }
+
     private fun actualizarNotificacion() {
         val manager = getSystemService(NotificationManager::class.java)
         manager.notify(1, crearNotification())
@@ -203,10 +227,20 @@ class RecordingService : Service() {
         }
         val texto =
             if (grabadorActual != null) "Guardando lo que pasa a tu alrededor" else "Listo para recordar cuando toque"
+        val intentAbrirApp = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            intentAbrirApp,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         return NotificationCompat.Builder(this, canalId)
             .setContentTitle("RememBel")
             .setContentText(texto)
             .setSmallIcon(R.drawable.ic_notification_remembel)
+            .setContentIntent(pendingIntent)
             .build()
     }
 }

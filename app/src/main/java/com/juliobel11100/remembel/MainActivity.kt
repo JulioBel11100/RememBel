@@ -6,6 +6,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,6 +36,7 @@ import android.Manifest
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.media.MediaPlayer
 import android.os.Build
@@ -705,6 +707,22 @@ fun PantallaPrincipal(
                     }
                 }
             }
+        }
+
+        TextButton(
+            onClick = {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://paypal.me/JulioBel11100"))
+                context.startActivity(intent)
+            }
+        ) {
+            Icon(
+                Icons.Filled.Favorite,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.width(6.dp))
+            Text("Apoya el proyecto")
         }
     }
 

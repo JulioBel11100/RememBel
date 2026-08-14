@@ -21,10 +21,22 @@ import java.nio.ByteOrder
 import kotlin.math.log10
 import kotlin.math.sqrt
 
+/** A partir de esta duración se muestrea en vez de decodificar el audio entero. */
+private const val UMBRAL_MUESTREO_US = 5 * 60 * 1_000_000L
+
+/** Cuánto audio se decodifica alrededor de cada barra cuando se muestrea. */
+private const val VENTANA_POR_BARRA_US = 400_000L
+
 /**
  * Decodifica el audio a PCM y calcula el volumen (RMS) en [numBarras] tramos
  * iguales, normalizado entre 0 y 1, para dibujar una forma de onda estilo
  * WhatsApp. Es una operación bloqueante: llamarla desde Dispatchers.IO.
+ *
+ * Para audios cortos se decodifica la pista completa. Para audios largos
+ * (recuperaciones de varias horas) hacer eso puede tardar demasiado y la
+ * barra nunca llega a aparecer, así que a partir de [UMBRAL_MUESTREO_US] se
+ * decodifica solo una ventana corta alrededor de cada barra en vez del audio
+ * completo: el tiempo de cálculo deja de depender de lo largo que sea el audio.
  */
 fun extraerFormaDeOnda(archivo: File, numBarras: Int = 46): List<Float> {
     val silencio = List(numBarras) { 0.05f }
@@ -50,73 +62,163 @@ fun extraerFormaDeOnda(archivo: File, numBarras: Int = 46): List<Float> {
 
         val sumaPorBarra = DoubleArray(numBarras)
         val cuentaPorBarra = LongArray(numBarras)
-        val bufferInfo = MediaCodec.BufferInfo()
 
-        var entradaAgotada = false
-        var salidaTerminada = false
-
-        while (!salidaTerminada) {
-            if (!entradaAgotada) {
-                val indiceEntrada = codec.dequeueInputBuffer(10_000)
-                if (indiceEntrada >= 0) {
-                    val bufferEntrada = codec.getInputBuffer(indiceEntrada)!!
-                    val tamano = extractor.readSampleData(bufferEntrada, 0)
-                    if (tamano < 0) {
-                        codec.queueInputBuffer(indiceEntrada, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                        entradaAgotada = true
-                    } else {
-                        codec.queueInputBuffer(indiceEntrada, 0, tamano, extractor.sampleTime, 0)
-                        extractor.advance()
-                    }
-                }
-            }
-
-            val indiceSalida = codec.dequeueOutputBuffer(bufferInfo, 10_000)
-            if (indiceSalida >= 0) {
-                if (bufferInfo.size > 0) {
-                    val bufferSalida = codec.getOutputBuffer(indiceSalida)!!
-                    bufferSalida.order(ByteOrder.LITTLE_ENDIAN)
-                    bufferSalida.position(bufferInfo.offset)
-                    bufferSalida.limit(bufferInfo.offset + bufferInfo.size)
-
-                    val barraActual = ((bufferInfo.presentationTimeUs * numBarras) / duracionUs)
-                        .toInt().coerceIn(0, numBarras - 1)
-
-                    // PCM de 16 bits con signo (posibles canales intercalados; los tratamos igual).
-                    while (bufferSalida.remaining() >= 2) {
-                        val muestra = bufferSalida.short.toDouble()
-                        sumaPorBarra[barraActual] += muestra * muestra
-                        cuentaPorBarra[barraActual]++
-                    }
-                }
-                codec.releaseOutputBuffer(indiceSalida, false)
-                if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
-                    salidaTerminada = true
-                }
-            }
+        if (duracionUs > UMBRAL_MUESTREO_US) {
+            decodificarPorMuestreo(extractor, codec, numBarras, duracionUs, sumaPorBarra, cuentaPorBarra)
+        } else {
+            decodificarCompleto(extractor, codec, numBarras, duracionUs, sumaPorBarra, cuentaPorBarra)
         }
 
         codec.stop()
         codec.release()
 
-        val rmsPorBarra = DoubleArray(numBarras) { i ->
-            if (cuentaPorBarra[i] > 0) sqrt(sumaPorBarra[i] / cuentaPorBarra[i]) else 0.0
-        }
-        val maximo = rmsPorBarra.maxOrNull()?.takeIf { it > 0.0 } ?: return silencio
-
-        // Escala logarítmica (dB) con suelo de ruido: así el silencio y el ruido de
-        // fondo quedan planos y los tramos con voz destacan con claridad, en vez de
-        // que un único pico de volumen aplaste visualmente el resto de la onda.
-        val pisoDb = 40.0
-        return rmsPorBarra.map { valor ->
-            val db = if (valor > 0.0) 20.0 * log10(valor / maximo) else -pisoDb
-            val normalizado = ((db + pisoDb) / pisoDb).coerceIn(0.0, 1.0)
-            normalizado.toFloat().coerceAtLeast(0.05f)
-        }
+        return normalizarBarras(sumaPorBarra, cuentaPorBarra, silencio)
     } catch (e: Exception) {
         return silencio
     } finally {
         extractor.release()
+    }
+}
+
+/** Decodifica la pista de principio a fin, tramo a tramo (audios cortos). */
+private fun decodificarCompleto(
+    extractor: MediaExtractor,
+    codec: MediaCodec,
+    numBarras: Int,
+    duracionUs: Long,
+    sumaPorBarra: DoubleArray,
+    cuentaPorBarra: LongArray
+) {
+    val bufferInfo = MediaCodec.BufferInfo()
+    var entradaAgotada = false
+    var salidaTerminada = false
+
+    while (!salidaTerminada) {
+        if (!entradaAgotada) {
+            entradaAgotada = alimentarEntrada(extractor, codec)
+        }
+
+        val indiceSalida = codec.dequeueOutputBuffer(bufferInfo, 10_000)
+        if (indiceSalida >= 0) {
+            if (bufferInfo.size > 0) {
+                val barraActual = ((bufferInfo.presentationTimeUs * numBarras) / duracionUs)
+                    .toInt().coerceIn(0, numBarras - 1)
+                acumularBuffer(codec, indiceSalida, bufferInfo, sumaPorBarra, cuentaPorBarra, barraActual)
+            }
+            codec.releaseOutputBuffer(indiceSalida, false)
+            if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
+                salidaTerminada = true
+            }
+        }
+    }
+}
+
+/**
+ * Decodifica solo una ventana corta ([VENTANA_POR_BARRA_US]) alrededor de cada
+ * barra, saltando de una a otra con seekTo, en vez de todo el audio: así el
+ * tiempo de cálculo es constante sin importar la duración total del audio.
+ */
+private fun decodificarPorMuestreo(
+    extractor: MediaExtractor,
+    codec: MediaCodec,
+    numBarras: Int,
+    duracionUs: Long,
+    sumaPorBarra: DoubleArray,
+    cuentaPorBarra: LongArray
+) {
+    val bufferInfo = MediaCodec.BufferInfo()
+    // Deja siempre margen para una ventana completa por delante, para que la
+    // última barra también tenga audio real que muestrear.
+    val ultimoObjetivoPosibleUs = (duracionUs - VENTANA_POR_BARRA_US).coerceAtLeast(0L)
+
+    for (barra in 0 until numBarras) {
+        val objetivoUs = ((duracionUs * barra) / numBarras).coerceAtMost(ultimoObjetivoPosibleUs)
+        extractor.seekTo(objetivoUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+        codec.flush()
+
+        var entradaAgotada = false
+        var salidaTerminada = false
+        var inicioReal = -1L
+
+        while (!salidaTerminada) {
+            if (!entradaAgotada) {
+                entradaAgotada = alimentarEntrada(extractor, codec)
+            }
+
+            val indiceSalida = codec.dequeueOutputBuffer(bufferInfo, 10_000)
+            if (indiceSalida >= 0) {
+                if (bufferInfo.size > 0) {
+                    if (inicioReal < 0L) inicioReal = bufferInfo.presentationTimeUs
+                    acumularBuffer(codec, indiceSalida, bufferInfo, sumaPorBarra, cuentaPorBarra, barra)
+                }
+                val ventanaCompleta = inicioReal >= 0L &&
+                    bufferInfo.presentationTimeUs - inicioReal >= VENTANA_POR_BARRA_US
+                codec.releaseOutputBuffer(indiceSalida, false)
+                if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0 || ventanaCompleta) {
+                    salidaTerminada = true
+                }
+            }
+        }
+    }
+}
+
+/** Intenta alimentar un buffer de entrada; devuelve true si se ha llegado al final de la pista. */
+private fun alimentarEntrada(extractor: MediaExtractor, codec: MediaCodec): Boolean {
+    val indiceEntrada = codec.dequeueInputBuffer(10_000)
+    if (indiceEntrada < 0) return false
+    val bufferEntrada = codec.getInputBuffer(indiceEntrada)!!
+    val tamano = extractor.readSampleData(bufferEntrada, 0)
+    return if (tamano < 0) {
+        codec.queueInputBuffer(indiceEntrada, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+        true
+    } else {
+        codec.queueInputBuffer(indiceEntrada, 0, tamano, extractor.sampleTime, 0)
+        extractor.advance()
+        false
+    }
+}
+
+/** PCM de 16 bits con signo (posibles canales intercalados; se tratan igual). */
+private fun acumularBuffer(
+    codec: MediaCodec,
+    indiceSalida: Int,
+    bufferInfo: MediaCodec.BufferInfo,
+    sumaPorBarra: DoubleArray,
+    cuentaPorBarra: LongArray,
+    barra: Int
+) {
+    val bufferSalida = codec.getOutputBuffer(indiceSalida)!!
+    bufferSalida.order(ByteOrder.LITTLE_ENDIAN)
+    bufferSalida.position(bufferInfo.offset)
+    bufferSalida.limit(bufferInfo.offset + bufferInfo.size)
+    while (bufferSalida.remaining() >= 2) {
+        val muestra = bufferSalida.short.toDouble()
+        sumaPorBarra[barra] += muestra * muestra
+        cuentaPorBarra[barra]++
+    }
+}
+
+/**
+ * Convierte la energía acumulada por barra a una escala logarítmica (dB) con
+ * suelo de ruido: así el silencio y el ruido de fondo quedan planos y los
+ * tramos con voz destacan con claridad, en vez de que un único pico de
+ * volumen aplaste visualmente el resto de la onda.
+ */
+private fun normalizarBarras(
+    sumaPorBarra: DoubleArray,
+    cuentaPorBarra: LongArray,
+    silencio: List<Float>
+): List<Float> {
+    val rmsPorBarra = DoubleArray(sumaPorBarra.size) { i ->
+        if (cuentaPorBarra[i] > 0) sqrt(sumaPorBarra[i] / cuentaPorBarra[i]) else 0.0
+    }
+    val maximo = rmsPorBarra.maxOrNull()?.takeIf { it > 0.0 } ?: return silencio
+
+    val pisoDb = 40.0
+    return rmsPorBarra.map { valor ->
+        val db = if (valor > 0.0) 20.0 * log10(valor / maximo) else -pisoDb
+        val normalizado = ((db + pisoDb) / pisoDb).coerceIn(0.0, 1.0)
+        normalizado.toFloat().coerceAtLeast(0.05f)
     }
 }
 

@@ -108,10 +108,11 @@ private fun agruparPorContinuidad(trozos: List<TrozoReal>): List<List<TrozoReal>
 }
 
 /**
- * Lee la hora de inicio a partir del NOMBRE del archivo (ej. "2026-07-04_11-05.m4a" -> ese momento).
+ * Lee la hora de inicio a partir del NOMBRE del archivo (ej. "2026-07-04_11-05.aac" -> ese momento).
+ * Admite también ".m4a" por si quedan trozos de una versión anterior de la app.
  */
 private fun leerInicioDesdeNombre(archivo: File): Long? {
-    val nombreSinExtension = archivo.name.removeSuffix(".m4a")
+    val nombreSinExtension = archivo.name.removeSuffix(".aac").removeSuffix(".m4a")
     return try {
         FORMATO_NOMBRE.parse(nombreSinExtension)?.time
     } catch (e: Exception) {
@@ -142,7 +143,7 @@ private fun leerDuracionReal(archivo: File): Long {
  *
  * [filtroCandidato] se aplica ANTES de abrir cada archivo (usando solo el inicio
  * que ya sabemos por su nombre, sin coste de E/S) para no pagar el precio de un
- * MediaExtractor por cada .m4a en disco cuando solo nos interesa un puñado de
+ * MediaExtractor por cada .aac en disco cuando solo nos interesa un puñado de
  * ellos — con retención de 7 días y trozos de 15 min puede haber cientos de
  * archivos, y abrirlos todos para descartar la mayoría es el cuello de botella
  * real de una recuperación.
@@ -151,7 +152,7 @@ private fun leerTrozosReales(
     carpeta: File,
     filtroCandidato: (inicioTrozo: Long) -> Boolean
 ): List<TrozoReal> {
-    val archivos = carpeta.listFiles { f -> f.name.endsWith(".m4a") } ?: return emptyList()
+    val archivos = carpeta.listFiles { f -> f.name.endsWith(".aac") || f.name.endsWith(".m4a") } ?: return emptyList()
 
     return archivos.mapNotNull { archivo ->
         val inicioTrozo = leerInicioDesdeNombre(archivo) ?: return@mapNotNull null
