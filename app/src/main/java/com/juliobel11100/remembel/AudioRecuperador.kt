@@ -138,6 +138,22 @@ private fun leerDuracionReal(archivo: File): Long {
 }
 
 /**
+ * RecordingService convierte cada trozo .aac a .m4a en segundo plano en cuanto termina de
+ * grabarse, y solo borra el .aac cuando el .m4a ya está escrito del todo. Durante ese
+ * instante pueden existir a la vez un .aac y un .m4a con el mismo nombre base: si se
+ * contaran como dos trozos distintos, [agruparPorContinuidad] los uniría como si fueran
+ * continuos (mismo inicio) y ese fragmento saldría duplicado en la recuperación. Cuando
+ * coinciden los dos, nos quedamos solo con el .m4a (la copia ya terminada y más rápida
+ * de leer); si solo hay uno de los dos, es el que hay.
+ */
+private fun archivosSinDuplicarPorConversion(carpeta: File): List<File> {
+    val archivos = carpeta.listFiles { f -> f.name.endsWith(".aac") || f.name.endsWith(".m4a") } ?: return emptyList()
+    return archivos
+        .groupBy { it.name.removeSuffix(".aac").removeSuffix(".m4a") }
+        .map { (_, mismoNombre) -> mismoNombre.firstOrNull { it.name.endsWith(".m4a") } ?: mismoNombre.first() }
+}
+
+/**
  * Lista los archivos reales de la carpeta y calcula su rango real [inicio, fin)
  * usando su nombre + su duración de verdad, ordenados cronológicamente.
  *
@@ -152,7 +168,7 @@ private fun leerTrozosReales(
     carpeta: File,
     filtroCandidato: (inicioTrozo: Long) -> Boolean
 ): List<TrozoReal> {
-    val archivos = carpeta.listFiles { f -> f.name.endsWith(".aac") || f.name.endsWith(".m4a") } ?: return emptyList()
+    val archivos = archivosSinDuplicarPorConversion(carpeta)
 
     return archivos.mapNotNull { archivo ->
         val inicioTrozo = leerInicioDesdeNombre(archivo) ?: return@mapNotNull null
